@@ -23,18 +23,11 @@ main = do
 
   Gtk.main
 
-myMarkup :: SimpleMarkup [Text, List, Local, Button] Void
+myMarkup :: SimpleMarkup [Text, List, LocalState, Button] Void
 myMarkup = expandMarkup $ list $ emptyMarkupBuilder
   +-> text "First element"
   +-> text "Second element"
   +-> list (emptyMarkupBuilder +-> text "Element sub list")
-  +-> local (2,1) 
+  +-> localState (2,1) 
     (\(i,sum) _ -> ( (succ i, sum * i), Nothing)) 
-    (\(_,sum) -> list $ emptyMarkupBuilder 
-      +-> button +-> text (T.pack $ show sum)
-      +-> local 0 (\i _ -> (succ i, Nothing)) 
-        (\i -> list $ emptyMarkupBuilder 
-          +-> button 
-          +-> text (T.pack $ show i)
-        )
-    )
+    (\(_,sum) -> list $ emptyMarkupBuilder +-> button +-> text (T.pack $ show sum))

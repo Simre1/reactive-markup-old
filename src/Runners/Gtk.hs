@@ -6,8 +6,8 @@ import Data.IORef
 import Markup
 import BasicElements
 
--- | Rather inefficient runner, but functions as a minimal implementation for now.
-gtkRunner :: Runner [Text, List, Button, Local] (IO Gtk.Widget)
+-- | Basic `Runner` for GTK 3. It is definitely not optimal, but is sufficient as demontration.
+gtkRunner :: Runner [Text, List, Button, LocalState] (IO Gtk.Widget)
 gtkRunner = emptyRunner
   |-> (\(Text t) _ _ -> Gtk.new Gtk.Label [#label Gtk.:= t] >>= Gtk.toWidget)
   |-> (\(List markups) runner handleEvent -> do 
@@ -20,7 +20,7 @@ gtkRunner = emptyRunner
         Gtk.on button #clicked (handleEvent $ f Click)
         Gtk.toWidget button
       )
-  |-> (\(Local state handleInnerEvent generateMarkup) runner handleOuterEvent -> do
+  |-> (\(LocalState state handleInnerEvent generateMarkup) runner handleOuterEvent -> do
       stateRef <- newIORef state
       cleanUpRef <- newIORef (pure ())
       boxLayout <- Gtk.new Gtk.Box [#orientation Gtk.:= Gtk.OrientationVertical]
