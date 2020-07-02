@@ -1,4 +1,4 @@
-name:                magic-markup
+name:                reactive-markup
 version:             0.1.0.0
 github:              "githubuser/Simre1"
 license:             MIT
@@ -20,7 +20,7 @@ library:
   source-dirs: src
 
 executables:
-  magic-markup-exe:
+  reactive-markup-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -28,10 +28,10 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - magic-markup
+    - reactive-markup
 
 tests:
-  magic-markup-test:
+  reactive-markup-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -39,7 +39,7 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - magic-markup
+    - reactive-markup
     - hspec
 
 default-extensions:

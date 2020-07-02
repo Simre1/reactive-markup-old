@@ -1,7 +1,6 @@
-# Magic Markup
+# Reactive Markup
 
-
-The main goal of magic markup is to provide a declarative way to program GUIs and to provide control structures within the markup to simplify event handling. Additionally, the markup is not limited to a fixed set of elements and can be easily extended with further components. The implementation of the markup can also be freely decided, even at runtime!
+The main goal of Reactive Markup is to provide a declarative way to program GUIs and to provide control structures within the markup to simplify event handling. Additionally, the markup is not limited to a fixed set of elements and can be easily extended with further components. The implementation of the markup can also be freely decided, even at runtime!
 
 The library ist currently still in a design stage and this minimal example only shows what could be possible. I would love to hear what others think about my ideas!
 
