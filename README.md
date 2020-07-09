@@ -35,7 +35,7 @@ myMarkup = expandMarkup $ list $ emptyMarkupBuilder
   +-> text "Second element"
   +-> list (emptyMarkupBuilder +-> text "Element sub list")
   +-> local (2,1) 
-    (\(i,sum) _ -> ( (succ i, sum * i), Nothing)) 
+    (\(i,sum) _ -> (Just (succ i, sum * i), Nothing)) 
     (\(_,sum) -> list $ emptyMarkupBuilder +-> button +-> text (T.pack $ show sum))
 ```
 

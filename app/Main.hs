@@ -2,9 +2,9 @@ module Main where
 
 import qualified GI.Gtk as Gtk
 
-import Markup
-import BasicElements
-import Runners.Gtk
+import ReactiveMarkup.Markup
+import ReactiveMarkup.Elements.Basic
+import ReactiveMarkup.Runners.Gtk
 import qualified Data.Text as T
 
 main :: IO ()
@@ -29,5 +29,5 @@ myMarkup = expandMarkup $ list $ emptyMarkupBuilder
   +-> text "Second element"
   +-> list (emptyMarkupBuilder +-> text "Element sub list")
   +-> localState (2,1) 
-    (\(i,sum) _ -> ( (succ i, sum * i), Nothing)) 
+    (\(i,sum) _ -> (Just $ (succ i, sum * i), Nothing)) 
     (\(_,sum) -> list $ emptyMarkupBuilder +-> button +-> text (T.pack $ show sum))
