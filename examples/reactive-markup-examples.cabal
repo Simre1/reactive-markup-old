@@ -1,0 +1,31 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: a962d41aad856354a9f4b9c0c730f7069adc6efa2c967c9ec5b741d713baa429
+
+name:           reactive-markup-examples
+version:        0.1.0.0
+category:       Web
+homepage:       https://github.com/Simre1/reactive-markup#readme
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2020 Author name here
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+executable reactive-markup-examples
+  main-is: Main.hs
+  other-modules:
+      Paths_reactive_markup_examples
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , reactive-markup
+    , reactive-markup-gtk
+    , text
+  default-language: Haskell2010

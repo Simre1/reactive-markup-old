@@ -6,40 +6,34 @@ The library ist currently still in a design stage and this minimal example only 
 
 Here is a code example:
 ```haskell
-import qualified GI.Gtk as Gtk
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-import Markup
-import BasicElements
-import Runners.Gtk
+module Main where
+
 import qualified Data.Text as T
 
+import ReactiveMarkup.Markup
+import ReactiveMarkup.Elements.Basic
+import ReactiveMarkup.Runners.Gtk
+
 main :: IO ()
-main = do
-  Gtk.init Nothing
+main = basicGtkSetup "Example" $ runMarkup gtkRunner (\_ -> pure ()) myMarkup
 
-  win <- Gtk.new Gtk.Window [ #title Gtk.:= "Example" ]
-
-  Gtk.on win #destroy Gtk.mainQuit
-
-  myWidget <- runMarkup gtkRunner (\_ -> pure ()) myMarkup
-
-  #add win myWidget
-
-  #showAll win
-
-  Gtk.main
-
-myMarkup :: SimpleMarkup [Text, List, LocalState, Button] Void
-myMarkup = expandMarkup $ list $ emptyMarkupBuilder
-  +-> text "First element"
-  +-> text "Second element"
-  +-> list (emptyMarkupBuilder +-> text "Element sub list")
-  +-> local (2,1) 
-    (\(i,sum) _ -> (Just (succ i, sum * i), Nothing)) 
-    (\(_,sum) -> list $ emptyMarkupBuilder +-> button +-> text (T.pack $ show sum))
+myMarkup :: SimpleMarkup [Label, List, DynamicState, DynamicMarkup, Button] Void
+myMarkup = expandMarkup $ list mempty $ emptyMarkupBuilder
+  +-> label mempty "Some text"
+  +-> label #italic "Italic text"
+  +-> list mempty (emptyMarkupBuilder +-> label #bold "Bold text")
+  +-> dynamicState 0 (\i _ -> (Just $ succ i, Nothing)) 
+        (flip dynamicMarkup $ \i -> list mempty $ emptyMarkupBuilder 
+          +-> button "Increase"
+          +-> label (#bold <> #italic) (T.pack $ show i)
+        )
 ```
 
-For now, I am working on an implementation (**gtkRunner** in _Runners/Gtk.hs_) of the Markup for GTK. I have created a simple implementation for the four components **Text**, **List**, **LocalState** and **Button**, which you can find in _BasicElements.hs_.
+For now, I am working on an implementation (**gtkRunner** in _Runners/Gtk.hs_) of the Markup for GTK. I have created a simple implementation for the five components **Label**, **List**, **DynamicState**, **DynamicMarkup** and **Button**, which you can find in _reactive-markup/src/ReactiveMarkup/Elements/Basic.hs_.
 
 Here is a screenshot of the above example with my simplistic implementation:
 ![](./screenshot.png)
@@ -62,20 +56,21 @@ This library depends on **gi-gtk**, so keep in mind that compilation takes quite
 
 I have already added some **documentation** of the source code! Take a look if you are interested.
 
-**Text**, **List**, **Button**, **LocalState** are all elements. **SimpleMarkup** is just a wrapper for those elements and the list parameter of **SimpleMarkup** keeps track of all used elements. The second parameter of **SimpleMarkup** is the event type that this **SimpleMarkup** can emit. Since I did not want to handle any events at the top-level, I just chose **Void** so that it is impossible to emit any events at the top-level.
+**Label**, **List**, **Button**, **DynamicState** and **DynamicMarkup** are all elements. **SimpleMarkup** is just a wrapper for those elements and the list parameter of **SimpleMarkup** keeps track of all used elements. The second parameter of **SimpleMarkup** is the event type that this **SimpleMarkup** can emit. Since I did not want to handle any events at the top-level, I just chose **Void** so that it is impossible to emit any events at the top-level.
 
 ### Explanation of each element
 
-- **Text**: An element to render text
+- **Label**: An element to render text
 - **List**: An element which can contain other elements
 - **Button**: An element which emits an event
-- **LocalState**: An element handles events and allows for state within markup
+- **DynamicState**: An element which handles events and allows for state within markup
+-- **DynamicMarkup**: An element which allows markups to depend on changing state
 
 ### Used Runner determines the result
 
 By itself, *myMarkup* is really just markup which can be executed in various ways. In order to use this markup, you have to provide a **Runner** which transforms this markup into GUI elements. In this example, I have used **gtkRunner** which converts *myMarkup* into GTK widgets.
 
-The transformation happens here: `myWidget <- runMarkup gtkRunner (\_ -> pure ()) myMarkup`
+The transformation happens here: `runMarkup gtkRunner (\_ -> pure ()) myMarkup`
 The rest of the main function just sets up GTK and creates a window.
 
 This means that you can define your markup once while using different runners depending on the situation.

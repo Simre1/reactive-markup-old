@@ -1,0 +1,39 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: db77460dd64e95390cad6c82e2fe463ca267824542f178baada8b7b5c079f916
+
+name:           reactive-markup-gtk
+version:        0.1.0.0
+category:       Web
+homepage:       https://github.com/Simre1/reactive-markup#readme
+bug-reports:    https://github.com/Simre1/reactive-markup/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2020 Author name here
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/Simre1/reactive-markup
+
+library
+  exposed-modules:
+      ReactiveMarkup.Runners.Gtk
+  other-modules:
+      Paths_reactive_markup_gtk
+  hs-source-dirs:
+      src
+  default-extensions: OverloadedLabels OverloadedStrings GADTs MultiParamTypeClasses TypeFamilies TypeOperators DataKinds DeriveFunctor FlexibleContexts FlexibleInstances ScopedTypeVariables RankNTypes TypeApplications FunctionalDependencies
+  build-depends:
+      base >=4.7 && <5
+    , gi-gtk
+    , gi-pango
+    , reactive-markup
+    , text
+  default-language: Haskell2010
