@@ -13,35 +13,35 @@ basicElements :: SpecWith ()
 basicElements = describe "Testing basic elements" $ do
 
   it "Label" $ do
-    let helloWorld = runMarkup basicRunner handleVoid $ (label mempty "Hello World!")
-    helloWorld `shouldBe` Identity "Hello World!"
+    let helloWorld = runMarkup basicRunner handleVoid $ (label "Hello World!")
+    helloWorld `shouldBe` "Hello World!"
   
   it "Empty List" $ do
-    let emptyList = runMarkup basicRunner handleVoid $ list mempty $ 
+    let emptyList = runMarkup basicRunner handleVoid $ list $ 
           emptyMarkupBuilder
-    emptyList `shouldBe` Identity "[]"
+    emptyList `shouldBe` "[]"
 
   it "List with Label" $ do
-    let emptyList = runMarkup basicRunner handleVoid $ list mempty $ emptyMarkupBuilder
-          +-> label mempty "Hello"
-          +-> label mempty "World!"
-    emptyList `shouldBe` Identity "[Hello,World!]"
+    let emptyList = runMarkup basicRunner handleVoid $ list $ emptyMarkupBuilder
+          +-> label "Hello"
+          +-> label "World!"
+    emptyList `shouldBe` "[Hello,World!]"
 
   it "Recursive List" $ do
-    let markup = runMarkup basicRunner handleVoid $ list mempty $ emptyMarkupBuilder
-          +-> label mempty "hello"
-          +-> (list mempty $ emptyMarkupBuilder
-            +-> label mempty "label"
-            +-> (list mempty $ emptyMarkupBuilder
-              +-> label mempty "label"))
-    markup `shouldBe` Identity "[hello,[label,[label]]]"
+    let markup = runMarkup basicRunner handleVoid $ list $ emptyMarkupBuilder
+          +-> label "hello"
+          +-> (list $ emptyMarkupBuilder
+            +-> label "label"
+            +-> (list $ emptyMarkupBuilder
+              +-> label "label"))
+    markup `shouldBe` "[hello,[label,[label]]]"
 
   it "Overwrite Runner" $ do
-    let overwritingRunner = basicRunner |-> (\(Label _ str) _ _ -> pure $ str <> "!")
-        markup = runMarkup overwritingRunner handleVoid $ list mempty $ emptyMarkupBuilder
-          +-> label mempty "Hello"
-          +-> (list mempty $ emptyMarkupBuilder +-> label mempty "Hello")
-    markup `shouldBe` Identity "[Hello!,[Hello!]]"
+    let overwritingRunner = basicRunner |-> (\(Label str) _ _ -> str <> "!")
+        markup = runMarkup overwritingRunner handleVoid $ list $ emptyMarkupBuilder
+          +-> label "Hello"
+          +-> (list $ emptyMarkupBuilder +-> label "Hello")
+    markup `shouldBe` "[Hello!,[Hello!]]"
   
   -- Not supported anymore. Practical testing is required to see if this feature would have been useful.
   -- it "Recursively overwrite Runner" $ do
@@ -52,7 +52,7 @@ basicElements = describe "Testing basic elements" $ do
   --                 else T.init
   --           in pure $ (<> "]") $ removeLast $ foldl (\a b -> a <> b <> ",") "[" $ 
   --               let newRunner = runner |-> 
-  --                     (\elem@(Label str) _ handleEvent -> runMarkup  handleEvent (label str) <> Identity "!")
+  --                     (\elem@(Label str) _ handleEvent -> runMarkup  handleEvent (label str) <> "!")
   --               in runIdentity . runMarkup newRunner handleEvent <$> markupBuilder 
   --           )
   --       markup = runMarkup overwritingRunner (\_ -> pure ()) $ list $ emptyMarkupBuilder
@@ -63,13 +63,13 @@ basicElements = describe "Testing basic elements" $ do
   where
     basicRunner :: Runner '[Label, List] Identity T.Text
     basicRunner = emptyRunner
-      |-> (\(Label _ str) _ _ -> pure str)
-      |-> (\(List _ markupBuilder) (runner) handleEvent -> 
+      |-> (\(Label str) _ _ -> str)
+      |-> (\(List markupBuilder) (runner) handleEvent -> 
         let removeLast = if (length (markupBuilder) == 0)
               then id 
               else T.init
-        in pure $ (<> "]") $ removeLast $ foldl (\a b -> a <> b <> ",") "[" $ 
-            runIdentity . runMarkup runner handleEvent <$> markupBuilder
+        in (<> "]") $ removeLast $ foldl (\a b -> a <> b <> ",") "[" $ 
+            runMarkup runner handleEvent <$> markupBuilder
         )
 
 handleVoid :: Void -> Identity ()

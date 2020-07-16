@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a962d41aad856354a9f4b9c0c730f7069adc6efa2c967c9ec5b741d713baa429
+-- hash: 0032902938a8eb6538bd374e47cb2117a9486a670fbb35f63e3240703929d218
 
 name:           reactive-markup-examples
 version:        0.1.0.0
@@ -17,7 +17,7 @@ license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 
-executable reactive-markup-examples
+executable examples
   main-is: Main.hs
   other-modules:
       Paths_reactive_markup_examples
@@ -25,6 +25,7 @@ executable reactive-markup-examples
       src
   build-depends:
       base >=4.7 && <5
+    , colour
     , reactive-markup
     , reactive-markup-gtk
     , text

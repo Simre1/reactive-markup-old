@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: db77460dd64e95390cad6c82e2fe463ca267824542f178baada8b7b5c079f916
+-- hash: f69885d612bcb0cf6cf288c16c8a07e15cc379f815e118e13a203d250360e3c4
 
 name:           reactive-markup-gtk
 version:        0.1.0.0
@@ -32,8 +32,11 @@ library
   default-extensions: OverloadedLabels OverloadedStrings GADTs MultiParamTypeClasses TypeFamilies TypeOperators DataKinds DeriveFunctor FlexibleContexts FlexibleInstances ScopedTypeVariables RankNTypes TypeApplications FunctionalDependencies
   build-depends:
       base >=4.7 && <5
+    , colour
     , gi-gtk
     , gi-pango
+    , haskell-gi-base
     , reactive-markup
     , text
+    , transformers
   default-language: Haskell2010

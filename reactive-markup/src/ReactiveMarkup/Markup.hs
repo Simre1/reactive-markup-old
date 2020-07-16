@@ -15,6 +15,7 @@ module ReactiveMarkup.Markup
   , Runner
   , emptyRunner
   , (|->)
+  , AddToRunner
   , reduceRunner
   , runMarkup
   , runMarkupWithTwo
@@ -29,6 +30,7 @@ module ReactiveMarkup.Markup
   -- ** Type families
   , SubList
   , Merge
+  , Unique
   , Void
   , Typeable
   )
@@ -91,7 +93,7 @@ data Runner (elems :: [*]) m result where
   Runner :: HM.HashMap TypeRep (Function m result) -> Runner elems m result
 
 data Function m result where
-  Function :: (Element t children e -> Runner children m result -> (e -> m ()) -> m result) -> Function m result
+  Function :: (Element t children e -> Runner children m result -> (e -> m ()) -> result) -> Function m result
 
 data Children
 
@@ -100,11 +102,13 @@ emptyRunner :: Runner '[] m result
 emptyRunner = Runner HM.empty
 
 -- | Allows a 'Runner' to handle one more element.
-(|->) :: forall t m result elems event. (Typeable t) => 
+(|->) :: forall t m result elems. (Typeable t) => 
   Runner elems m result
-   -> (Element t '[Children] event -> Runner '[Children] m result -> (event -> m ()) -> m result) -- ^ This function is used to handle 'Element's.
+   -> AddToRunner t m result -- ^ This function is used to handle 'Element's.
    -> Runner (Merge elems '[t]) m result -- ^ Runner has additional capabilities and can now run 'Element' t.
 (|->) (Runner hashMap) f = Runner (HM.insert (typeRep $ Proxy @t) (Function $ unsafeCoerce f) (hashMap))
+
+type AddToRunner t m result = (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m ()) -> result)
 
 -- | You can always reduce the capabilities of a 'Runner' as long as the resulting capabilities are within the original. 
 -- Should be used carefully since it breaks type inference.
@@ -115,7 +119,7 @@ reduceRunner runner = unsafeCoerce runner
 runMarkupExact :: forall elems children e m result. 
   Runner (Merge elems children) m result 
   -> (e -> m ()) -- ^ Used to handle the event that this 'Markup' might emit.
-  -> Markup elems children e -> m result
+  -> Markup elems children e -> result
 runMarkupExact runner markup = runMarkupWithTwoExact (unsafeCoerce runner) (unsafeCoerce runner) markup
 
 -- | Run the directly wrapped 'Element's of a 'Markup' with the first 'Runner' and their children with the second. The types of 'Markup' and 'Runner' must match exactly.
@@ -123,13 +127,13 @@ runMarkupWithTwoExact :: forall elems children e m result.
   Runner elems m result -> Runner children m result 
   -> (e -> m ()) -- ^ Used to handle the event that this 'Markup' might emit.
   -> Markup elems children e 
-  -> m result
+  -> result
 runMarkupWithTwoExact (Runner hashMap) runner2 handleEvent (Markup elem mapEvent) = runMarkupExact' (elem) mapEvent
   where 
-    runMarkupExact' :: forall x internalEvent. Typeable x => Element x children internalEvent -> (internalEvent -> e) -> m result
+    runMarkupExact' :: forall x internalEvent. Typeable x => Element x children internalEvent -> (internalEvent -> e) -> result
     runMarkupExact' elem mapEvent = unwrap (hashMap HM.! (typeRep (Proxy @x)))
       where 
-        unwrap :: Function m result -> m result
+        unwrap :: Function m result -> result
         unwrap (Function f) = unsafeCoerce f elem runner2 (handleEvent . mapEvent)
 
 -- | The preferred way to run a 'Markup' with a 'Runner'.
@@ -139,7 +143,7 @@ runMarkup :: forall exec elems children e m result. SubList (Merge elems childre
   Runner exec m result 
   -> (e -> m ()) -- ^ Used to handle the event that this 'Markup' might emit.
   -> Markup elems children e
-  -> m result
+  -> result
 runMarkup runner = runMarkupExact (reduceRunner runner)
 
 -- The preferred way to run a 'Markup' with two 'Runner's. The first 'Runner' is used for the directly wrapped
@@ -149,7 +153,7 @@ runMarkup runner = runMarkupExact (reduceRunner runner)
 runMarkupWithTwo :: forall exec1 exec2 elems children e m result. (SubList elems exec1, SubList children exec2) => 
   Runner exec1 m result -> Runner exec2 m result 
   -> (e -> m ()) -- ^ Used to handle the event that this 'Markup' might emit.
-  -> Markup elems children e -> m result
+  -> Markup elems children e -> result
 runMarkupWithTwo runner1 runner2 = runMarkupWithTwoExact (reduceRunner runner1) (reduceRunner runner2)
 
 -- | Used to Combine multiple 'Markup's.
@@ -166,6 +170,8 @@ emptyMarkupBuilder = MarkupBuilder []
 (+->) :: MarkupBuilder elems children e -> Markup elems2 children2 e -> MarkupBuilder (Merge elems elems2) (Merge children children2) e
 (+->) (MarkupBuilder markups) markup = unsafeCoerce $ MarkupBuilder $ markups ++ [unsafeCoerce markup]
 
+infixl 2 +->
+
 -- | Get the 'Markup's of a MarkupBuilder in a list, so that each 'Markup' has the same type.
 getMarkups :: MarkupBuilder elems children e -> [Markup elems children e]
 getMarkups (MarkupBuilder markups) = markups
@@ -181,11 +187,15 @@ type SubList (sub :: [*]) (full :: [*]) = full ~ Merge full sub
 -- | Merges two type-level sub-lists so that no element occurs twice and the given order is maintained.
 type family Merge (xs :: [*]) (ys :: [*]) where
   Merge xs xs = xs
-  Merge (x:xs) ys = x : Merge xs (Remove x ys)
   Merge '[] ys = ys
+  Merge xs '[] = xs
+  Merge (x:xs) ys = x : Merge xs (Remove x ys)
 
 type family Remove x (xs :: [*]) where
   Remove x (x:as) = Remove x as
   Remove x (a:as) = a : Remove x as
   Remove x '[] = '[]
-  
+
+type family Unique (xs :: [*]) where
+  Unique '[] = '[]
+  Unique (x:xs) = x:Remove x xs

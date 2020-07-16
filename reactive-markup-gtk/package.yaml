@@ -15,7 +15,10 @@ dependencies:
   - reactive-markup
   - gi-gtk
   - gi-pango
+  - haskell-gi-base
   - text
+  - colour
+  - transformers
 
 library:
   source-dirs: src

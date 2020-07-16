@@ -15,8 +15,9 @@ dependencies:
   - text
   - reactive-markup
   - reactive-markup-gtk
+  - colour
 
 executables:
-  reactive-markup-examples:
+  examples:
     source-dirs:      src
     main:             Main.hs
