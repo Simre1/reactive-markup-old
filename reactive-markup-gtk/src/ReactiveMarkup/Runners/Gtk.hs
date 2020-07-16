@@ -17,18 +17,22 @@ import ReactiveMarkup.Markup
 import ReactiveMarkup.SimpleEvents
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.Colour (black)
+import Data.Functor ((<&>))
 
 -- | Basic `Runner` for GTK 3. It is definitely not optimal, but is sufficient as demontration.
 gtkRunner :: Runner [Label, List, Button, DynamicState, DynamicMarkup, Set FontSize, Set FontWeight, Set FontStyle, Set Orientation, Set FontColour] IO (Gtk Gtk.Widget)
 gtkRunner =
   emptyRunner
-    |-> ( \(Label text) _ _ -> liftIO $ do
+    |-> ( \(Label text) _ _ -> do
             label <- Gtk.new Gtk.Label [#label Gtk.:= text]
-            Gtk.toWidget label
+            i <- nextId
+            widget <- Gtk.toWidget label
+            fontCss >>= addCssToWidget widget i
+            pure widget 
         )
     |-> ( \(List markups) runner handleEvent -> do
             boxLayout <- Gtk.new Gtk.Box []
-            orientation <- get gtkOrientation
+            orientation <- ask gtkOrientation
             sequenceA $ (\markup -> runMarkup runner handleEvent markup >>= #add boxLayout) <$> markups
             Gtk.set boxLayout $ case orientation of
               Horizontal -> [#orientation Gtk.:= Gtk.OrientationHorizontal]
@@ -38,7 +42,10 @@ gtkRunner =
     |-> ( \(Button text) runner handleEvent -> do
             button <- Gtk.new Gtk.Button [#label Gtk.:= text]
             Gtk.on button #clicked (handleEvent Click)
-            Gtk.toWidget button
+            widget <- Gtk.toWidget button
+            i <- nextId
+            fontCss >>= addCssToWidget widget i
+            pure widget
         )
     |-> ( \(DynamicState state mapEvent generateMarkup) childRunner handleOuterEvent -> do
             (dynamicState, updateState) <- liftIO $ newDynamic state
@@ -58,7 +65,8 @@ gtkRunner =
                   writeIORef cleanUpRef (#remove boxLayout widget)
                   #add boxLayout widget
                   #showAll widget
-                generateWidget state =
+                generateWidget state = do
+
                   runMarkup childRunner handleEvent $ generateMarkup state
 
             handler <- withinIO $ \newState -> generateWidget newState >>= setWidget
@@ -70,105 +78,97 @@ gtkRunner =
             pure widget
         )
     |-> ( \(Set (FontSize f) markup) runner handleEvent -> do
-            widget <- runMarkup runner handleEvent markup
-            fontSize <- f <$> get gtkFontSize
-            i <- nextId
-            let css =  "{font-size:" <> T.pack (show fontSize) <> "px;}"
-            addCssToWidget widget i css
-            pure widget
+        local (\s -> s{gtkFontSize=f (gtkFontSize s)}) $ 
+          runMarkup runner handleEvent markup
         )
     |-> (\(Set weight markup) runner handleEvent -> do
-        widget <- runMarkup runner handleEvent markup
-        i <- nextId
-        let toWeight BoldWeight = "bold"
-            toWeight RegularWeight = "bormal"
-            css = "{font-weight:" <> toWeight weight <> ";}"
-        addCssToWidget widget i css
-        pure widget
+        local (\s -> s{gtkFontWeight = weight}) $ 
+          runMarkup runner handleEvent markup
         )
     |-> (\(Set (style) markup) runner handleEvent -> do
-        widget <- runMarkup runner handleEvent markup
-        i <- nextId
-        let toStyle ItalicStyle = "italic"
-            toStyle RegularStyle = "normal"
-            css = "{font-style:" <> toStyle style <> ";}"
-        addCssToWidget widget i css
-        pure widget
+        local (\s -> s{gtkFontStyle=style}) $ 
+          runMarkup runner handleEvent markup
         )
     |-> (\(Set orientation markup) runner handleEvent -> do
-      widget <- runMarkup runner handleEvent markup
-      modify (\s -> s{gtkOrientation=orientation})
-      pure widget
+      local (\s -> s{gtkOrientation=orientation}) $ 
+        runMarkup runner handleEvent markup
       )
     |-> runnerFontColour
 
+
 runnerFontColour :: AddToRunner (Set FontColour) IO (Gtk Gtk.Widget)
-runnerFontColour = (\(Set (FontColour colour) markup) runner handleEvent -> do
-      widget <- runMarkup runner handleEvent markup
-      i <- nextId
-      let css = "{color:" <> T.pack (sRGB24show colour) <> ";}"
-      addCssToWidget widget i css
-      pure widget
+runnerFontColour = (\(Set colour markup) runner handleEvent -> do
+      local (\s -> s{gtkFontColour = colour}) $ 
+        runMarkup runner handleEvent markup
       )
 
-newtype Gtk a = Gtk (R.ReaderT (IORef GtkState) IO a) deriving (Functor, Applicative, Monad, MonadIO)
+fontCss :: Gtk T.Text
+fontCss = foldl (<>) "" <$> sequenceA [ask (fontColour . gtkFontColour), ask (fontSize . gtkFontSize), ask (fontStyle . gtkFontStyle), ask (fontWeight . gtkFontWeight)]
+  where 
+    fontColour (FontColour colour) = "color:" <> T.pack (sRGB24show colour)  <> ";"
+    fontSize size = "font-size:" <> T.pack (show size) <> "px;"
+    fontStyle style = 
+      let styleText = case style of
+            RegularStyle -> "normal"
+            ItalicStyle -> "italic"
+      in "font-style:" <> styleText <> ";"
+    fontWeight (FontWeight weight) = "font-weight:" <> T.pack (show weight) <> ";"
 
-get :: (GtkState -> a) -> Gtk a
-get f = Gtk $ do
-  ref <- R.ask
-  liftIO $ f <$> readIORef ref
 
-modify :: (GtkState -> GtkState) -> Gtk ()
-modify f = Gtk $ do
-  ref <- R.ask
-  liftIO $ modifyIORef ref f
+newtype Gtk a = Gtk (R.ReaderT GtkState IO a) deriving (Functor, Applicative, Monad, MonadIO)
+
+ask :: (GtkState -> a) -> Gtk a
+ask f = Gtk $ f <$> R.ask
+  
+local :: (GtkState -> GtkState) -> Gtk a -> Gtk a
+local f (Gtk s) = Gtk $ R.local f s
 
 nextId :: Gtk Int
 nextId = do
-  i <- get gtkId
-  modify (\g -> g{gtkId=succ i})
+  ref <- ask gtkId
+  i <- liftIO $ atomicModifyIORef ref (\i -> (succ i, i))
   pure i 
 
-runGtk' :: IORef GtkState -> Gtk a -> IO a
-runGtk' ref (Gtk s) = R.runReaderT s ref
-
-runGtk :: GtkState -> Gtk Gtk.Widget -> IO Gtk.Widget
-runGtk gtkState gtk = do
-  ref <- newIORef gtkState
-  (widget) <- runGtk' ref gtk
-  pure widget
-
 withinIO :: (s -> Gtk a) -> Gtk (s -> IO a)
-withinIO gtk = do
-  ref <- Gtk $ R.ask
-  pure $ \s -> runGtk' ref (gtk s)
+withinIO f = do
+  state <- ask id
+  pure $ \s -> do
+    a <- runGtk state (f s)
+    pure a
 
-defaultGtkState :: GtkState
-defaultGtkState = GtkState Vertical 15 0
+runGtk :: GtkState -> Gtk a -> IO a
+runGtk state (Gtk s) = R.runReaderT s state
+
+defaultGtkState :: IO GtkState
+defaultGtkState = newIORef 0 <&> \ref -> GtkState Vertical (FontColour black) (FontWeight 400) RegularStyle  15 ref
 
 data GtkState = GtkState
   { gtkOrientation :: Set Orientation,
+    gtkFontColour :: Set FontColour,
+    gtkFontWeight :: Set FontWeight,
+    gtkFontStyle :: Set FontStyle,
     gtkFontSize :: Int,
-    gtkId :: Int
+    gtkId :: IORef Int
   }
 
 -- | Quick setup for GTK to display a widget generated by 'runMarkup' in combination with 'gtkRunner'.
 --
 -- Example: main = basicGtkSetup "MyWindowName" $ runMarkup gtkRunner (\_ -> pure ()) myMarkup
-basicGtkSetup :: T.Text -> IO Gtk.Widget -> IO ()
+basicGtkSetup :: T.Text -> Gtk Gtk.Widget -> IO ()
 basicGtkSetup windowTitle widget = do
   Gtk.init Nothing
   win <- Gtk.new Gtk.Window [#title Gtk.:= windowTitle]
   Gtk.on win #destroy Gtk.mainQuit
-  widget >>= #add win
+  gtkState <- defaultGtkState
+  runGtk gtkState widget >>= #add win
   #showAll win
   Gtk.main
 
 addCssToWidget :: MonadIO m => Gtk.Widget -> Int -> T.Text -> m ()
 addCssToWidget widget i css = do
-  let className = "e" <> T.pack (show i)
+  let widgetName = "e" <> T.pack (show i)
   cssProvider <- Gtk.cssProviderNew
   styleContext <- Gtk.widgetGetStyleContext widget
-  Gtk.cssProviderLoadFromData cssProvider $ T.encodeUtf8 ("." <> className <> css)
-  Gtk.styleContextAddClass styleContext className
+  Gtk.widgetSetName widget widgetName
+  Gtk.cssProviderLoadFromData cssProvider $ T.encodeUtf8 ("#" <> widgetName <> "{" <> css <> "}")
   Gtk.styleContextAddProvider styleContext cssProvider $ fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER

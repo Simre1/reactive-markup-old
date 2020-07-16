@@ -66,7 +66,7 @@ data FontStyle deriving Typeable
 data instance Set FontStyle = ItalicStyle | RegularStyle deriving Typeable
 
 data FontWeight deriving Typeable
-data instance Set FontWeight = BoldWeight | RegularWeight deriving Typeable
+data instance Set FontWeight = FontWeight Int deriving Typeable
 
 data FontColour deriving Typeable 
 data instance Set FontColour = FontColour (Colour Double) deriving Typeable
@@ -93,10 +93,10 @@ regularStyle :: Setting '[Set FontStyle]
 regularStyle = makeSetting $ RegularStyle
 
 bold :: Setting '[Set FontWeight]
-bold = makeSetting $ BoldWeight
+bold = makeSetting $ FontWeight 700
 
 regularWeight :: Setting '[Set FontWeight]
-regularWeight = makeSetting $ RegularWeight
+regularWeight = makeSetting $ FontWeight 400
 
 fontColour :: Colour Double -> Setting '[Set FontColour]
 fontColour = makeSetting . FontColour

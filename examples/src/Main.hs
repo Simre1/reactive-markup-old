@@ -14,13 +14,13 @@ import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
 main :: IO ()
-main = basicGtkSetup "Example" $ runGtk defaultGtkState $ runMarkup gtkRunner (\_ -> pure ()) myMarkup
+main = basicGtkSetup "Example" $ runMarkup gtkRunner (\_ -> pure ()) myMarkup
 
-myMarkup :: SimpleMarkup '[Set FontSize, List, Label, Set FontStyle, Set FontWeight, DynamicState, DynamicMarkup, Set FontColour, Button] e
-myMarkup = toSimpleMarkup $ fontSizePx 15 %-> list (emptyMarkupBuilder
+myMarkup :: SimpleMarkup '[Set FontColour, Set FontSize, List, Label, Set FontStyle, Set FontWeight, DynamicState, DynamicMarkup, Button] e
+myMarkup = toSimpleMarkup $ fontColour white %% fontSizePx 15 %-> list (emptyMarkupBuilder
   +-> (label "Some text")
   +-> italicStyle %-> label "Italic text"
-  +-> bold %-> list (emptyMarkupBuilder +-> label "Bold text")
+  +-> bold %-> list (emptyMarkupBuilder +-> label "Bold text" +-> label "Another bold text")
   +-> greaterFont %-> dynamicState 0 (\i _ -> (Just $ succ i, Nothing))
         (flip dynamicMarkup $ \i -> fontColour (rainbowColour i) %-> list (emptyMarkupBuilder 
           +-> button "Change Colour"
