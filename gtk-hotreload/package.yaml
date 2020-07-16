@@ -1,0 +1,37 @@
+name:                gtk-hotreload
+version:             0.1.0.0
+#synopsis:
+#description:
+github:              "Simre1/reactive-markup"
+homepage:            https://github.com/Simre1/reactive-markup#readme
+license:             BSD3
+author:              Author name here
+maintainer:          example@example.com
+copyright:           2020 Author name here
+category:            Web
+
+dependencies:
+  - base >= 4.7 && < 5
+  - gi-gtk
+  - gi-glib
+  - reactive-markup
+  - reactive-markup-gtk
+
+library:
+  source-dirs: src
+
+default-extensions:
+  - OverloadedLabels
+  - OverloadedStrings
+  - GADTs
+  - MultiParamTypeClasses
+  - TypeFamilies
+  - TypeOperators
+  - DataKinds
+  - DeriveFunctor
+  - FlexibleContexts
+  - FlexibleInstances
+  - ScopedTypeVariables
+  - RankNTypes
+  - TypeApplications
+  - FunctionalDependencies

@@ -1,0 +1,39 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 54d7ee3c80f36271c4ea8ea0f2fdb4f599d2bb1926c9926d35568ce1f10e2dbd
+
+name:           gtk-hotreload
+version:        0.1.0.0
+category:       Web
+homepage:       https://github.com/Simre1/reactive-markup#readme
+bug-reports:    https://github.com/Simre1/reactive-markup/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2020 Author name here
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/Simre1/reactive-markup
+
+library
+  exposed-modules:
+      HotReload
+  other-modules:
+      Paths_gtk_hotreload
+  hs-source-dirs:
+      src
+  default-extensions: OverloadedLabels OverloadedStrings GADTs MultiParamTypeClasses TypeFamilies TypeOperators DataKinds DeriveFunctor FlexibleContexts FlexibleInstances ScopedTypeVariables RankNTypes TypeApplications FunctionalDependencies
+  build-depends:
+      base >=4.7 && <5
+    , gi-glib
+    , gi-gtk
+    , reactive-markup
+    , reactive-markup-gtk
+  default-language: Haskell2010

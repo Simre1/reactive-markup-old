@@ -14,7 +14,7 @@ import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
 main :: IO ()
-main = basicGtkSetup "Example" $ runMarkup gtkRunner (\_ -> pure ()) myMarkup
+main = basicGtkSetup "Example" (\_ -> pure ()) myMarkup
 
 myMarkup :: SimpleMarkup '[Set FontColour, Set FontSize, List, Label, Set FontStyle, Set FontWeight, DynamicState, DynamicMarkup, Button] e
 myMarkup = toSimpleMarkup $ fontColour white %% fontSizePx 15 %-> list (emptyMarkupBuilder

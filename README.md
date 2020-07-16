@@ -4,6 +4,8 @@ The main goal of Reactive Markup is to provide a declarative way to program GUIs
 
 The library ist currently still in a design stage and this minimal example only shows what could be possible. I would love to hear what others think about my ideas!
 
+Following Example outdated! Expect an update within a day!
+
 Here is a code example:
 ```haskell
 {-# LANGUAGE DataKinds #-}
@@ -74,6 +76,17 @@ The transformation happens here: `runMarkup gtkRunner (\_ -> pure ()) myMarkup`
 The rest of the main function just sets up GTK and creates a window.
 
 This means that you can define your markup once while using different runners depending on the situation.
+
+## Hot Reloading !
+
+I am currently testing hot reloading with the help of ghcid and it seems to be working (although slightly buggy).
+
+You can try it out with:
+```bash
+ghcid --command="stack ghci" --run="hotReloadMarkupWithoutAsking myMarkup (\_ -> pure ())"
+```
+
+This will hot-reload the example in examples/Main.hs.
 
 ## Call for participation
 

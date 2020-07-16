@@ -4,3 +4,5 @@ packages:
 - ./reactive-markup
 - ./reactive-markup-gtk
 - ./examples
+- ./gtk-hotreload
+
