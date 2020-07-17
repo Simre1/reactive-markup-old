@@ -4,32 +4,43 @@
 
 module Main where
 
+import Data.List (find)
 import qualified Data.Text as T
-import Data.Colour
-import Data.Colour.Names
-
-import ReactiveMarkup.Elements.Settings
-import ReactiveMarkup.Elements.Basic
 import ReactiveMarkup.Markup
+import Examples.BasicElements
+import Examples.GridLayout
 import ReactiveMarkup.Runners.Gtk
 
 main :: IO ()
-main = basicGtkSetup "Example" (\_ -> pure ()) myMarkup
-
-myMarkup :: SimpleMarkup '[Set FontColour, Set FontSize, List, Label, Set FontStyle, Set FontWeight, DynamicState, DynamicMarkup, Button] e
-myMarkup = expandMarkup $ fontColour white %% fontSizePx 15 %-> list (emptyMarkupBuilder
-  +-> (label "Some text")
-  +-> italicStyle %-> label "Italic text"
-  +-> bold %-> list (emptyMarkupBuilder +-> label "Bold text" +-> label "Another bold text")
-  +-> greaterFont %-> dynamicState 0 (\i _ -> (Just $ succ i, Nothing))
-        (flip dynamicMarkup $ \i -> fontColour (rainbowColour i) %-> list (emptyMarkupBuilder 
-          +-> button "Change Colour"
-          +-> bold %-> label "Colourful!"
-        )))
-
-rainbowColour :: Int -> Colour Double
-rainbowColour i = blend factor3 (blend factor2 red yellow) (blend factor2 (blend factor1 red yellow) blue)
+main = do
+  chosenMarkup <- chooseMarkup
+  case chosenMarkup of
+    Nothing -> pure ()
+    Just (name, markup) -> basicGtkSetup (T.pack name) (\_ -> pure ()) markup
   where
-    factor1 = sin (0.35 * fromIntegral i)
-    factor2 = sin (0.2 * fromIntegral i)
-    factor3 = 0.5 + sin (0.25 * fromIntegral i) / 4
+    chooseMarkup :: IO (Maybe (String, SimpleMarkup GtkElements Void))
+    chooseMarkup = case presetMarkup of
+      Just x -> pure $ find (\(name, _) -> name == x) examples
+      Nothing -> do
+        putStrLn "You can choose an example by typing out its name. These examples are available:"
+        sequence $ putStrLn . ("- " <>) . fst <$> examples
+        putStrLn "You can also exit now by typing quit."
+        let askForExampleName = do
+              input <- getLine
+              case input of
+                "quit" -> pure Nothing
+                str -> case lookup str examples of
+                  Just x -> pure $ Just (str, x)
+                  Nothing -> do
+                    putStrLn "That example does not exist. Choose one from the list or type quit."
+                    askForExampleName
+        askForExampleName
+
+examples :: [(String, SimpleMarkup GtkElements Void)]
+examples = 
+  [ ("basic-elements", expandMarkup basicElements)
+  , ("grid-layout", expandMarkup grid)
+  ]
+
+presetMarkup :: Maybe String
+presetMarkup = Nothing

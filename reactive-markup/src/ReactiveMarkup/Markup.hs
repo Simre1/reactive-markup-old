@@ -15,7 +15,7 @@ module ReactiveMarkup.Markup
   , Runner
   , emptyRunner
   , (|->)
-  , AddToRunner
+  , RunElement
   , reduceRunner
   , runMarkup
   , runMarkupWithTwo
@@ -101,14 +101,14 @@ data Children
 emptyRunner :: Runner '[] m result
 emptyRunner = Runner HM.empty
 
+type RunElement t m result = (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m ()) -> result)
+
 -- | Allows a 'Runner' to handle one more element.
 (|->) :: forall t m result elems. (Typeable t) => 
   Runner elems m result
-   -> AddToRunner t m result -- ^ This function is used to handle 'Element's.
+   -> RunElement t m result -- ^ This function is used to handle 'Element's.
    -> Runner (Merge elems '[t]) m result -- ^ Runner has additional capabilities and can now run 'Element' t.
 (|->) (Runner hashMap) f = Runner (HM.insert (typeRep $ Proxy @t) (Function $ unsafeCoerce f) (hashMap))
-
-type AddToRunner t m result = (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m ()) -> result)
 
 -- | You can always reduce the capabilities of a 'Runner' as long as the resulting capabilities are within the original. 
 -- Should be used carefully since it breaks type inference.

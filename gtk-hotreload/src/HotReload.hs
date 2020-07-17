@@ -71,8 +71,8 @@ setupHotReloading = do
           cleanUp
 
 
-hotReloadMarkup :: SubList (Merge elems children) GtkRunner => Markup elems children e -> (e -> IO ()) -> IO ()
-hotReloadMarkup markup handleEvent = do
+hotReloadMarkup :: SubList (Merge elems children) GtkElements => (e -> IO ()) -> Markup elems children e -> IO ()
+hotReloadMarkup handleEvent markup = do
   maybeThread <- readIORef gtkThread
   case maybeThread of
     Nothing -> do
@@ -84,23 +84,21 @@ hotReloadMarkup markup handleEvent = do
                 putStrLn "Setting up GTK. Please wait for a moment." 
                 setupHotReloading
                 threadDelay 2000000
-                hotReloadMarkup markup handleEvent
+                hotReloadMarkup handleEvent markup
               "n" -> putStrLn "Hot-Reloading is not possible without setting up GTK. Therefore, there is nothing to do."
               _ -> putStrLn "You need to either input the character y or n and no other characters." *> handleUserInput
       handleUserInput
     Just _ -> do
-      gtkState <- defaultGtkState
-      putMVar gtkWidget $ runGtk gtkState $ runMarkup gtkRunner handleEvent markup
+      putMVar gtkWidget $ toWidget handleEvent markup
 
-hotReloadMarkupWithoutAsking :: SubList (Merge elems children) GtkRunner => Markup elems children e -> (e -> IO ()) -> IO ()
-hotReloadMarkupWithoutAsking markup handleEvent = do
+hotReloadMarkupWithoutAsking :: SubList (Merge elems children) GtkElements => (e -> IO ()) -> Markup elems children e -> IO ()
+hotReloadMarkupWithoutAsking handleEvent markup = do
   maybeThread <- readIORef gtkThread
   case maybeThread of
     Nothing -> do
                 putStrLn "Setting up GTK. Please wait for a moment." 
                 setupHotReloading
                 threadDelay 2000000
-                hotReloadMarkup markup handleEvent
+                hotReloadMarkupWithoutAsking handleEvent markup
     Just _ -> do
-      gtkState <- defaultGtkState
-      putMVar gtkWidget $ runGtk gtkState $ runMarkup gtkRunner handleEvent markup
+      putMVar gtkWidget $ toWidget handleEvent markup

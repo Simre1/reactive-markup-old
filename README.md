@@ -101,7 +101,7 @@ I am currently testing hot reloading with the help of ghcid.
 
 You can try it out with:
 ```bash
-ghcid --command="stack ghci" --run="hotReloadMarkupWithoutAsking myMarkup (\_ -> pure ())"
+ghcid --command="stack ghci" --run="hotReloadMarkupWithoutAsking (\_ -> pure ()) Examples.BasicElements.basicElements"
 ```
 
 This will hot-reload the example in _examples/src/Main.hs_.
