@@ -4,18 +4,16 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f69885d612bcb0cf6cf288c16c8a07e15cc379f815e118e13a203d250360e3c4
+-- hash: 6a68e84e6bdb86b60b20dea02215373fe56d6c529e7947e9959cb103a3e813fb
 
 name:           reactive-markup-gtk
 version:        0.1.0.0
-category:       Web
 homepage:       https://github.com/Simre1/reactive-markup#readme
 bug-reports:    https://github.com/Simre1/reactive-markup/issues
 author:         Author name here
 maintainer:     example@example.com
 copyright:      2020 Author name here
-license:        BSD3
-license-file:   LICENSE
+license:        MIT
 build-type:     Simple
 
 source-repository head
@@ -32,11 +30,10 @@ library
   default-extensions: OverloadedLabels OverloadedStrings GADTs MultiParamTypeClasses TypeFamilies TypeOperators DataKinds DeriveFunctor FlexibleContexts FlexibleInstances ScopedTypeVariables RankNTypes TypeApplications FunctionalDependencies
   build-depends:
       base >=4.7 && <5
-    , colour
-    , gi-gtk
-    , gi-pango
-    , haskell-gi-base
+    , colour >2.3 && <2.4
+    , gi-gtk ==3.0.*
+    , haskell-gi-base ==0.23.*
     , reactive-markup
-    , text
-    , transformers
+    , text >1.2 && <1.3
+    , transformers ==0.5.6.*
   default-language: Haskell2010

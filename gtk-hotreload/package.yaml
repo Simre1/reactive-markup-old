@@ -12,11 +12,11 @@ category:            Web
 
 dependencies:
   - base >= 4.7 && < 5
-  - gi-gtk
-  - gi-glib
+  - gi-gtk == 3.0.*
+  - gi-glib == 2.0.*
   - reactive-markup
   - reactive-markup-gtk
-  - async
+  - async == 2.2.*
 
 library:
   source-dirs: src

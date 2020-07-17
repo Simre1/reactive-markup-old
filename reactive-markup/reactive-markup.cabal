@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f20589c2a7172527c3a8bd4ec6cc806160769d6e5443ce9eda81a9e4cccba336
+-- hash: 59bc4559a67e6dedceee23abc843491a18238389451c49108064a5047c14ff93
 
 name:           reactive-markup
 version:        0.1.0.0
@@ -35,10 +35,10 @@ library
   default-extensions: OverloadedLabels OverloadedStrings GADTs MultiParamTypeClasses TypeFamilies TypeOperators DataKinds DeriveFunctor FlexibleContexts FlexibleInstances ScopedTypeVariables RankNTypes TypeApplications FunctionalDependencies
   build-depends:
       base >=4.7 && <5
-    , colour
-    , containers
-    , text <1.3
-    , unordered-containers <0.3
+    , colour >2.3 && <2.4
+    , containers >0.6.2 && <0.6.3
+    , text >1.2 && <1.3
+    , unordered-containers >0.2 && <0.3
   default-language: Haskell2010
 
 test-suite reactive-markup-test
@@ -52,10 +52,10 @@ test-suite reactive-markup-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , colour
-    , containers
+    , colour >2.3 && <2.4
+    , containers >0.6.2 && <0.6.3
     , hspec
     , reactive-markup
-    , text <1.3
-    , unordered-containers <0.3
+    , text >1.2 && <1.3
+    , unordered-containers >0.2 && <0.3
   default-language: Haskell2010

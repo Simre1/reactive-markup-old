@@ -83,7 +83,7 @@ hotReloadMarkup markup handleEvent = do
               "y" -> do
                 putStrLn "Setting up GTK. Please wait for a moment." 
                 setupHotReloading
-                threadDelay 1000000
+                threadDelay 2000000
                 hotReloadMarkup markup handleEvent
               "n" -> putStrLn "Hot-Reloading is not possible without setting up GTK. Therefore, there is nothing to do."
               _ -> putStrLn "You need to either input the character y or n and no other characters." *> handleUserInput
@@ -99,7 +99,7 @@ hotReloadMarkupWithoutAsking markup handleEvent = do
     Nothing -> do
                 putStrLn "Setting up GTK. Please wait for a moment." 
                 setupHotReloading
-                threadDelay 1000000
+                threadDelay 2000000
                 hotReloadMarkup markup handleEvent
     Just _ -> do
       gtkState <- defaultGtkState
