@@ -17,7 +17,7 @@ main :: IO ()
 main = basicGtkSetup "Example" (\_ -> pure ()) myMarkup
 
 myMarkup :: SimpleMarkup '[Set FontColour, Set FontSize, List, Label, Set FontStyle, Set FontWeight, DynamicState, DynamicMarkup, Button] e
-myMarkup = toSimpleMarkup $ fontColour white %% fontSizePx 15 %-> list (emptyMarkupBuilder
+myMarkup = expandMarkup $ fontColour white %% fontSizePx 15 %-> list (emptyMarkupBuilder
   +-> (label "Some text")
   +-> italicStyle %-> label "Italic text"
   +-> bold %-> list (emptyMarkupBuilder +-> label "Bold text" +-> label "Another bold text")

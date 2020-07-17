@@ -12,48 +12,64 @@ import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 import Control.Monad (when)
 
-
 import System.IO (hPutStrLn, stderr)
-
+import Control.Concurrent.Async
+import Data.Maybe
+ 
 gtkWidget :: MVar (IO Gtk.Widget)
 gtkWidget = unsafePerformIO $ newEmptyMVar
 
 shouldQuit :: IORef Bool
 shouldQuit = unsafePerformIO $ newIORef False
 
-gtkThread :: IORef (Maybe ThreadId)
+gtkThread :: IORef (Maybe (Async ()))
 gtkThread = unsafePerformIO $ (newIORef Nothing)
+
+cleanUp :: IO ()
+cleanUp = do
+  tryTakeMVar gtkWidget
+  writeIORef shouldQuit False
+  writeIORef gtkThread Nothing
+
+
+stopGtk :: IO ()
+stopGtk = do
+  async <- readIORef gtkThread
+  case async of 
+    Nothing -> pure ()
+    Just x -> writeIORef shouldQuit True
 
 setupHotReloading :: IO ()
 setupHotReloading = do
-  threadId <- forkIO $ do
-    Gtk.init Nothing
-    win <- Gtk.new Gtk.Window [#title Gtk.:= "HotReload"]
-    Gtk.on win #destroy Gtk.mainQuit
-    #showAll win
-    let loop = do
-          shouldQuit <- readIORef shouldQuit
-          if shouldQuit
-            then Gtk.mainQuit >> pure False
-            else do
-              maybeNewWidget <- tryReadMVar gtkWidget
-              case maybeNewWidget of
-                Nothing -> pure True
-                Just _ -> do
-                  makeWidget <- takeMVar gtkWidget
-                  widgets <- Gtk.containerGetChildren win
-                  forM_ widgets $ \w -> Gtk.containerRemove win w
-                  makeWidget >>= Gtk.containerAdd win
-                  #showAll win
-                  pure True
-    GLib.timeoutAddSeconds GLib.PRIORITY_DEFAULT 1 loop 
-    Gtk.main
-    writeIORef gtkThread Nothing
-  writeIORef gtkThread $ Just threadId
+  async <- asyncBound action
+  writeIORef gtkThread (Just async)
+  pure ()
+  where action = do
+          Gtk.init Nothing
+          win <- Gtk.new Gtk.Window [#title Gtk.:= "HotReload"]
+          Gtk.on win #destroy Gtk.mainQuit
+          #showAll win
+          let loop = do
+                shouldQuit <- readIORef shouldQuit
+                if shouldQuit
+                  then #close win >> pure False
+                  else do
+                    maybeNewWidget <- tryReadMVar gtkWidget
+                    case maybeNewWidget of
+                      Nothing -> pure True
+                      Just _ -> do
+                        makeWidget <- takeMVar gtkWidget
+                        widgets <- Gtk.containerGetChildren win
+                        forM_ widgets $ \w -> Gtk.containerRemove win w
+                        widget <- makeWidget
+                        Gtk.containerAdd win widget
+                        #showAll widget
+                        pure True
+          timer <- GLib.timeoutAddSeconds GLib.PRIORITY_DEFAULT 1 loop 
+          Gtk.main
+          GLib.sourceRemove timer
+          cleanUp
 
--- not working
--- stopGtk :: IO ()
--- stopGtk = writeIORef shouldQuit True
 
 hotReloadMarkup :: SubList (Merge elems children) GtkRunner => Markup elems children e -> (e -> IO ()) -> IO ()
 hotReloadMarkup markup handleEvent = do
@@ -88,5 +104,3 @@ hotReloadMarkupWithoutAsking markup handleEvent = do
     Just _ -> do
       gtkState <- defaultGtkState
       putMVar gtkWidget $ runGtk gtkState $ runMarkup gtkRunner handleEvent markup
-
--- hotReloadMarkup myMarkup (\_ -> pure ())

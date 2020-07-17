@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 54d7ee3c80f36271c4ea8ea0f2fdb4f599d2bb1926c9926d35568ce1f10e2dbd
+-- hash: ab41e6d1e97cac52c8144df81cb340b6a6ef5f8e631fa998d1e86ad96ab10870
 
 name:           gtk-hotreload
 version:        0.1.0.0
@@ -31,7 +31,8 @@ library
       src
   default-extensions: OverloadedLabels OverloadedStrings GADTs MultiParamTypeClasses TypeFamilies TypeOperators DataKinds DeriveFunctor FlexibleContexts FlexibleInstances ScopedTypeVariables RankNTypes TypeApplications FunctionalDependencies
   build-depends:
-      base >=4.7 && <5
+      async
+    , base >=4.7 && <5
     , gi-glib
     , gi-gtk
     , reactive-markup

@@ -16,6 +16,7 @@ dependencies:
   - gi-glib
   - reactive-markup
   - reactive-markup-gtk
+  - async
 
 library:
   source-dirs: src
