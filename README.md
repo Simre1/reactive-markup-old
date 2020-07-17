@@ -75,6 +75,19 @@ Other build systems (cabal/nix) should also work fine, but I have not set up con
 
 This library depends on **gi-gtk**, so keep in mind that compilation takes quite a while.
 
+## How to try yourself
+
+After successfully building the project, you can start the examples by typing:
+```
+stack exec examples
+```
+
+If you want to edit an example, be sure to use hot-reloading:
+```bash
+ghcid --command="stack ghci" --run="hotReloadMarkupWithoutAsking (\_ -> pure ()) Examples.*.*"
+```
+Just replace _*_ with the correct path to the example.
+
 ## What is the Markup datatype?
 
 **Markup** is an extensible datatype which can be extended with an arbitrary amount of elements.
