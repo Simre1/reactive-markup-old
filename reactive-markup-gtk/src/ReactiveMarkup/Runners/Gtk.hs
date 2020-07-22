@@ -14,7 +14,7 @@ import qualified Control.Monad.Trans.Reader as R
 import Data.Colour.Names (black)
 import Data.Colour.SRGB (sRGB24show)
 import Data.Functor ((<&>))
-import qualified Data.GI.Base.Attributes as Gtk (AttrOpTag (AttrConstruct))
+import qualified Data.GI.Base.Attributes as Gtk (AttrOpTag (..))
 import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef, writeIORef)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T (encodeUtf8)
@@ -70,7 +70,7 @@ runLabel (Label text) _ _ = do
 
 runList :: RunElement List IO (GtkM Gtk.Widget)
 runList (List markups) runner handleEvent = do
-  boxLayout <- Gtk.new Gtk.Box []
+  boxLayout <- Gtk.new Gtk.Box [#orientation Gtk.:= Gtk.OrientationVertical]
   sequenceA $ (\markup -> runMarkup runner handleEvent markup >>= #add boxLayout) <$> markups
   Gtk.toWidget boxLayout
 
@@ -79,7 +79,8 @@ runSpecificListOptions (SpecificOptions options listMarkup) runner handleEvent =
   let gtkOptions = runMarkup (emptyRunner |-> runOrientation) handleEvent <$> options
   runMarkupWithTwo
     ( emptyRunner |-> \(List markups) runnerInner handleEvent -> do
-        boxLayout <- Gtk.new Gtk.Box gtkOptions
+        boxLayout <- Gtk.new Gtk.Box [#orientation Gtk.:= Gtk.OrientationVertical]
+        Gtk.set boxLayout gtkOptions
         sequenceA $ (\markup -> runMarkup runnerInner handleEvent markup >>= #add boxLayout) <$> markups
         Gtk.toWidget boxLayout
     )
@@ -87,7 +88,7 @@ runSpecificListOptions (SpecificOptions options listMarkup) runner handleEvent =
     handleEvent
     listMarkup
   where
-    runOrientation :: RunElement (Orientation) IO (Gtk.AttrOp Gtk.Box 'Gtk.AttrConstruct)
+    runOrientation :: RunElement (Orientation) IO (Gtk.AttrOp Gtk.Box 'Gtk.AttrSet)
     runOrientation (Orientation orientation) runner handleEvent =
       case orientation of
         Vertical -> #orientation Gtk.:= Gtk.OrientationVertical

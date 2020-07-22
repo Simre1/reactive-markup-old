@@ -13,33 +13,40 @@ Here are some (planned) features:
 Here is a code example:
 ```haskell
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Examples.BasicElements where
 
-import qualified Data.Text as T
 import Data.Colour
 import Data.Colour.Names
-
-import ReactiveMarkup.Elements.Settings
+import qualified Data.Text as T
 import ReactiveMarkup.Elements.Basic
+import ReactiveMarkup.Elements.Settings
 import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
-main :: IO ()
-main = basicGtkSetup "Example" (\_ -> pure ()) myMarkup
-
-myMarkup :: SimpleMarkup '[Set FontColour, Set FontSize, List, Label, Set FontStyle, Set FontWeight, DynamicState, DynamicMarkup, Button] e
-myMarkup = expandMarkup $ fontColour white %% fontSizePx 15 %-> list (emptyMarkupBuilder
-  +-> label "Some text"
-  +-> italicStyle %-> label "Italic text"
-  +-> bold %-> list (emptyMarkupBuilder +-> label "Bold text" +-> label "Another bold text")
-  +-> greaterFont %-> dynamicState 0 (\i _ -> (Just $ succ i, Nothing))
-        (flip dynamicMarkup $ \i -> fontColour (rainbowColour i) %-> list (emptyMarkupBuilder 
-          +-> button "Change Colour"
-          +-> bold %-> label "Colourful!"
-        )))
+basicElements :: SimpleMarkup '[List, Label, GeneralOptions '[FontStyle, FontWeight, FontSize, FontColour], DynamicState, DynamicMarkup, Button] e
+basicElements =
+  expandMarkup $
+    fontColour white %% fontSizePx 15
+      %-> list
+        ( emptyMarkupBuilder
+            +-> (label "Some text")
+            +-> italicStyle %-> label "Italic text"
+            +-> bold %-> list (emptyMarkupBuilder +-> label "Bold text" +-> label "Another bold text")
+            +-> greaterFont
+              %-> dynamicState
+                0
+                (\i _ -> (Just $ succ i, Nothing))
+                ( flip dynamicMarkup $ \i ->
+                    fontColour (rainbowColour i)
+                      %-> list
+                        ( emptyMarkupBuilder
+                            +-> button "Change Colour"
+                            +-> bold %-> label "Colourful!"
+                        )
+                )
+        )
 
 rainbowColour :: Int -> Colour Double
 rainbowColour i = blend factor3 (blend factor2 red yellow) (blend factor2 (blend factor1 red yellow) blue)
@@ -97,12 +104,9 @@ Elements used in this example are
 - Button
 - DynamicState
 - DynamicMarkup
-- Set FontColour
-- Set FontSize
-- Set FontWeight
-- Set FontStyle
+- GeneralOptions '[FontStyle, FontWeight, FontSize, FontColour]
 
-**Label**, **List**, **Button** directly correlate with Gtk components that you can see in the screenshot. **Dynamic State** and **Dynamic Markup** allow elements to have internal state and are used to change the font colour on a button press. All the **Set ...** elements are used for styling.
+**Label**, **List**, **Button** directly correlate with Gtk components that you can see in the screenshot. **Dynamic State** and **Dynamic Markup** allow elements to have internal state and are used to change the font colour on a button press. **GeneralOptions** is used for styling.
 
 ## How does my Markup get rendered?
 
