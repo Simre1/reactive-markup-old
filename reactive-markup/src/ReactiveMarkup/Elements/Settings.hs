@@ -1,102 +1,141 @@
-module ReactiveMarkup.Elements.Settings
-  ( FontSize
-  , fontSizePx
-  , greaterFont
-  , smallerFont
-  , Orientation
-  , horizontal
-  , vertical
-  , FontStyle
-  , italicStyle
-  , regularStyle
-  , FontWeight
-  , bold
-  , regularWeight
-  , FontColour
-  , fontColour
-  , Set(..)
-  , Element(..)
-  , Setting
-  , makeSetting
-  , (%%)
-  , (%->)
-  , ) 
-  where
+{-# LANGUAGE UndecidableInstances #-}
 
-import ReactiveMarkup.Markup
-
-import Data.Typeable
-import Unsafe.Coerce (unsafeCoerce)
+module ReactiveMarkup.Elements.Settings where
 import Data.Colour.SRGB (Colour)
 
-data family Set setting
+import qualified Data.Text as T
+import ReactiveMarkup.Markup
+import Data.Typeable
+import Unsafe.Coerce (unsafeCoerce)
 
-data instance Element (Set setting) elems e = Set (Set setting) (SimpleMarkup elems e)  deriving Typeable
+data SpecificOptions t (options :: [*])
 
--- TODO: Remove unsafeCoerce. There should be a type-safe solution with a type class.
-applySettings :: Setting (Set setting:rest) -> Markup elems children e -> Markup '[Set setting] (Merge (Unique rest) (Merge elems children)) e
-applySettings (SingleSet setting) markup = toMarkup $ Set setting $ toSimpleMarkup markup
-applySettings (NextSet setting otherSettings) markup = toMarkup $ Set setting $ unsafeCoerce $ 
-  toSimpleMarkup $ applySettings otherSettings markup
+data instance Element (SpecificOptions t options) elems e = SpecificOptions [Markup options '[] e] (Markup '[t] elems e)
 
-data Setting settings where
-  SingleSet :: Typeable (Set setting) => Set setting -> Setting '[Set setting]
-  NextSet :: Typeable (Set setting) => (Set (setting)) -> Setting (Set s:ss) -> Setting (Set setting:Set s:ss)
+data GeneralOptions (options :: [*])
 
-(%%) :: Typeable s => Setting '[Set s] -> Setting (Set s1:s2) -> Setting (Set s:Set s1:s2)
-(%%) (SingleSet setting) = NextSet setting
+data instance Element (GeneralOptions options) elems e
+  = GeneralOptions [Markup options '[] e] (SimpleMarkup elems e)
+
+data Options t specific general e = Options [Markup specific '[] e] [Markup general '[] e]
+
+data Any deriving Typeable
+
+-- applyOptionCollector ::
+--   CollectOptions specific general elems children =>
+--   Options t specific general e ->
+--   Markup elems children e ->
+--   CollectedOptions t specific general elems children e
+-- applyOptionCollector = collect
+
+class CollectOptions (specific :: [*]) (general :: [*]) (elems :: [*]) (children :: [*]) where
+  type CollectedOptions specific general elems children :: * -> *
+  type CollectElement specific elems :: *
+  collect :: Options (CollectElement specific elems) specific general e -> Markup elems children e -> CollectedOptions specific general elems children e
+
+instance Typeable (g : general) => CollectOptions '[] (g : general) (elems) children where
+  type CollectedOptions _ (g : general) (elems) children = Markup '[GeneralOptions (g : general)] (Merge (elems) children)
+  type CollectElement '[] _ = Any
+  collect (Options _ general) = toMarkup . GeneralOptions general . toSimpleMarkup
+
+instance (Typeable t, Typeable (s : specific)) => CollectOptions (s : specific) '[] '[t] children where
+  type CollectedOptions (s : specific) _ '[t] (children) = Markup '[SpecificOptions t (s : specific)] children
+  type CollectElement (s:specific) '[t] = t
+  collect (Options specific _) = toMarkup . SpecificOptions specific
+
+instance CollectOptions '[] '[] elems children where
+  type CollectedOptions _ _ elems children = Markup elems children
+  type CollectElement '[] _ = Any 
+  collect _ markup = markup
+
+instance (Typeable (g : general), Typeable (s : specific), Typeable t) => CollectOptions (s : specific) (g : general) '[t] children where
+  type
+    CollectedOptions (s : specific) (g : general) '[t] children =
+      Markup '[GeneralOptions (g : general)] (Merge '[SpecificOptions t (s : specific)] children)
+  type CollectElement (s:specific) '[t] = t
+  collect (Options specific general) =
+    toMarkup . GeneralOptions general . toSimpleMarkup . toMarkup . SpecificOptions specific
+
+(%%) :: forall t specific1 general1 e specific2 general2. Options t specific1 general1 e -> Options t specific2 general2 e -> Options t (Merge specific1 specific2) (Merge general1 general2) e
+(%%) (Options specific1 general1) (Options specific2 general2) = Options (unsafeCoerce specific1 ++ unsafeCoerce specific2) (unsafeCoerce general1 ++ unsafeCoerce general2)
 
 infix 4 %%
 
-(%->) :: Setting (Set setting : rest) -> Markup elems children e -> Markup '[Set setting] (Merge (Unique rest) (Merge elems children)) e
-(%->) = applySettings
+(%->) ::
+  CollectOptions specific general elems children =>
+  Options (CollectElement specific elems) specific general e ->
+  Markup elems children e ->
+  CollectedOptions specific general elems children e
+(%->) = collect
 
 infix 3 %->
 
-makeSetting :: Typeable setting => Set setting -> Setting '[Set setting]
-makeSetting = SingleSet
+makeGeneralOption :: Markup '[o] '[] e ->  Options t '[] '[o] e 
+makeGeneralOption markup = Options [] [markup]
 
-data FontSize deriving Typeable
-data instance Set FontSize = FontSize (Int -> Int) deriving Typeable
+makeSpecificOption :: Markup '[o] '[] e -> Options t '[o] '[] e
+makeSpecificOption markup = Options [markup] [] 
 
-data Orientation deriving Typeable  
-data instance Set Orientation = Horizontal | Vertical deriving (Eq, Show, Typeable)
+data FontSize = FontSize' (Int -> Int) deriving (Typeable)
 
-data FontStyle deriving Typeable
-data instance Set FontStyle = ItalicStyle | RegularStyle deriving Typeable
+data instance Element FontSize elems e = FontSize FontSize deriving (Typeable)
 
-data FontWeight deriving Typeable
-data instance Set FontWeight = FontWeight Int deriving Typeable
+data Orientation = Horizontal | Vertical deriving Typeable
+data instance Element Orientation elems e = Orientation Orientation
 
-data FontColour deriving Typeable 
-data instance Set FontColour = FontColour (Colour Double) deriving Typeable
+data FontStyle = ItalicStyle | RegularStyle deriving Typeable 
+data instance Element FontStyle elems e = FontStyle FontStyle deriving Typeable
 
-smallerFont :: Setting '[Set FontSize]
-smallerFont = makeSetting $ FontSize (\x -> round $ fromIntegral x * 0.7)
+data FontWeight = FontWeight' Int deriving Typeable
+data instance Element FontWeight elems e = FontWeight FontWeight deriving Typeable
 
-greaterFont :: Setting '[Set FontSize]
-greaterFont = makeSetting $ FontSize (\x -> round $ fromIntegral x * 1.3)
+data FontColour = FontColour' (Colour Double) deriving Typeable
+data instance Element FontColour elems e = FontColour FontColour deriving Typeable
 
-fontSizePx :: Int -> Setting '[Set FontSize]
-fontSizePx px = makeSetting $ FontSize (const px)
 
-horizontal :: Setting '[Set Orientation]
-horizontal = makeSetting $ Horizontal
+-- Styles 
+smallerFont :: Options t '[] '[FontSize] e
+smallerFont = makeGeneralOption . toMarkup $ FontSize $ FontSize' (\x -> round $ fromIntegral x * 0.7)
 
-vertical :: Setting '[Set Orientation]
-vertical = makeSetting $ Vertical
+greaterFont :: Options t '[] '[FontSize] e
+greaterFont = makeGeneralOption . toMarkup $ FontSize $ FontSize' (\x -> round $ fromIntegral x * 1.3)
 
-italicStyle :: Setting '[Set FontStyle]
-italicStyle = makeSetting $ ItalicStyle
+fontSizePx :: Int -> Options t '[] '[FontSize] e
+fontSizePx px = makeGeneralOption . toMarkup $ FontSize $ FontSize' (const px)
 
-regularStyle :: Setting '[Set FontStyle]
-regularStyle = makeSetting $ RegularStyle
+horizontal :: Options t '[] '[Orientation] e
+horizontal = makeGeneralOption . toMarkup $ Orientation Horizontal
 
-bold :: Setting '[Set FontWeight]
-bold = makeSetting $ FontWeight 700
+vertical :: Options t '[] '[Orientation] e
+vertical = makeGeneralOption . toMarkup $ Orientation Vertical
 
-regularWeight :: Setting '[Set FontWeight]
-regularWeight = makeSetting $ FontWeight 400
+italicStyle :: Options t '[] '[FontStyle] e
+italicStyle = makeGeneralOption . toMarkup $ FontStyle ItalicStyle
 
-fontColour :: Colour Double -> Setting '[Set FontColour]
-fontColour = makeSetting . FontColour
+regularStyle :: Options t '[] '[FontStyle] e
+regularStyle = makeGeneralOption . toMarkup $ FontStyle RegularStyle
+
+bold :: Options t '[] '[FontWeight] e
+bold = makeGeneralOption . toMarkup $ FontWeight $ FontWeight' 700
+
+regularWeight :: Options t '[] '[FontWeight] e
+regularWeight = makeGeneralOption . toMarkup $ FontWeight $ FontWeight' 400
+
+fontColour :: Colour Double -> Options t '[] '[FontColour] e
+fontColour = makeGeneralOption . toMarkup . FontColour . FontColour'
+
+-- Events
+
+data TextChange deriving (Typeable)
+
+data instance Element TextChange elems e = TextChange (T.Text -> e)
+
+data Activate deriving (Typeable)
+
+data instance Element Activate elems e = Activate e
+
+onTextChange :: (T.Text -> e) -> Options t '[TextChange] '[] e
+onTextChange = makeSpecificOption . toMarkup . TextChange
+
+onActivate :: e -> Options t '[Activate] '[] e
+onActivate = makeSpecificOption . toMarkup . Activate

@@ -12,8 +12,7 @@ import ReactiveMarkup.Elements.Layout
 import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
-
-grid :: Markup '[Set FontSize] '[GridLayout, Label] e
+grid :: Markup '[GeneralOptions '[FontSize]] '[GridLayout, Label] e
 grid = fontSizePx 30 %-> gridLayout (GridOptions 4 4) (emptyMarkupBuilder
   +-> gridChild (GridPosition 1 1 1 1) (label "[0,0]")
   +-> gridChild (GridPosition 1 3 3 1) (label "[0,2] -> [2,2]")

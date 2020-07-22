@@ -13,7 +13,7 @@ import ReactiveMarkup.Elements.Basic
 import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
-basicElements :: SimpleMarkup '[Set FontColour, Set FontSize, List, Label, Set FontStyle, Set FontWeight, DynamicState, DynamicMarkup, Button] Void
+basicElements :: SimpleMarkup '[List, Label, GeneralOptions '[FontStyle, FontWeight, FontSize, FontColour], DynamicState, DynamicMarkup, Button] e
 basicElements = expandMarkup $ fontColour white %% fontSizePx 15 %-> list (emptyMarkupBuilder
   +-> (label "Some text")
   +-> italicStyle %-> label "Italic text"

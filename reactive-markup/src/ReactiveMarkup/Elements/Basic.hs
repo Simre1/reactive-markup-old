@@ -14,14 +14,11 @@ module ReactiveMarkup.Elements.Basic
   )
   where
 
-import Data.Function ((&))
 import qualified Data.Text as T
-import GHC.OverloadedLabels (IsLabel(..))
 import Data.Colour
 
 import ReactiveMarkup.Markup
 import ReactiveMarkup.SimpleEvents
-import ReactiveMarkup.Elements.Settings
 
 data Label deriving Typeable
 data instance Element Label elems e = Label T.Text

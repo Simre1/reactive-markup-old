@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 59bc4559a67e6dedceee23abc843491a18238389451c49108064a5047c14ff93
+-- hash: 504d6dcbfb0d5386237471d4a1131cb0b6eb6028a392eae876df30ca6a0fd1e9
 
 name:           reactive-markup
 version:        0.1.0.0
@@ -24,6 +24,7 @@ source-repository head
 library
   exposed-modules:
       ReactiveMarkup.Elements.Basic
+      ReactiveMarkup.Elements.Input
       ReactiveMarkup.Elements.Layout
       ReactiveMarkup.Elements.Settings
       ReactiveMarkup.Markup
@@ -39,6 +40,7 @@ library
     , containers >0.6.2 && <0.6.3
     , text >1.2 && <1.3
     , unordered-containers >0.2 && <0.3
+    , vector
   default-language: Haskell2010
 
 test-suite reactive-markup-test
@@ -58,4 +60,5 @@ test-suite reactive-markup-test
     , reactive-markup
     , text >1.2 && <1.3
     , unordered-containers >0.2 && <0.3
+    , vector
   default-language: Haskell2010

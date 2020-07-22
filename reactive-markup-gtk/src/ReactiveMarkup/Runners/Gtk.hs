@@ -21,12 +21,14 @@ import qualified GI.Gtk as Gtk
 import ReactiveMarkup.Elements.Basic
 import ReactiveMarkup.Elements.Layout
 import ReactiveMarkup.Elements.Settings
+import ReactiveMarkup.Elements.Input
 import ReactiveMarkup.Markup
 import ReactiveMarkup.SimpleEvents
 
-type GtkElements = [Label, List, Button, DynamicState, DynamicMarkup, Set FontSize, Set FontWeight, Set FontStyle, Set Orientation, Set FontColour, FlowLayout, GridLayout]
+type GtkElements = [Label, List, Button, DynamicState, DynamicMarkup, GeneralOptions [FontSize, FontWeight, FontStyle, Orientation, FontColour], FlowLayout, GridLayout, TextInput, SpecificOptions TextInput '[TextChange, Activate]]
 
 -- | Basic `Runner` for GTK 3. Could be improved drastically by utilizing a similar technique to virtual DOM.
+-- gtkRunner :: Runner GtkElements IO (GtkM (Ret a))
 gtkRunner :: Runner GtkElements IO (GtkM Gtk.Widget)
 gtkRunner =
   emptyRunner
@@ -37,14 +39,13 @@ gtkRunner =
     |-> runDynamicState
     |-> runDynamicMarkup
     -- styling elements
-    |-> runFontSize
-    |-> runFontWeight
-    |-> runFontStyle
-    |-> runOrientation
-    |-> runFontColour
+    |-> runGeneralOptions
     -- additional layouts
     |-> runFlowLayout
     |-> runGridLayout
+    -- input elements
+    |-> runTextInput
+    |-> runSpecificTextInputOptions
 
 runLabel :: RunElement Label IO (GtkM Gtk.Widget)
 runLabel (Label text) _ _ = do
@@ -52,6 +53,16 @@ runLabel (Label text) _ _ = do
   widget <- Gtk.toWidget label
   fontCss >>= addCssToWidget widget
   pure widget
+
+class Widget a where
+
+instance Widget W where
+
+data W
+data L
+data Ret a where
+  RetW :: Gtk.Widget -> Ret a
+  RetE :: (Gtk.Entry -> IO ()) -> Ret L
 
 runList :: RunElement List IO (GtkM Gtk.Widget)
 runList (List markups) runner handleEvent = do
@@ -103,30 +114,31 @@ runDynamicMarkup (DynamicMarkup dynamicState generateMarkup) childRunner handleE
   Gtk.on widget #destroy (liftES unregisterWidgetUpdate)
   pure widget
 
-runFontSize :: RunElement (Set FontSize) IO (GtkM Gtk.Widget)
-runFontSize (Set (FontSize changeSize) markup) runner handleEvent =
-  local (\s -> s {gtkFontSize = changeSize (gtkFontSize s)}) $
-    runMarkup runner handleEvent markup
+runGeneralOptions :: RunElement (GeneralOptions [FontSize, FontWeight, FontStyle, Orientation, FontColour]) IO (GtkM Gtk.Widget)
+runGeneralOptions (GeneralOptions options markup) runner handleEvent = do
+  let optionsRunner = emptyRunner |-> runFontSize |-> runFontWeight |-> runFontStyle |-> runOrientation |-> runFontColour
+      stateChanges = runMarkup optionsRunner handleEvent <$> options
+  local (foldl (.) id stateChanges) $ runMarkup runner handleEvent markup
+  where 
+    runFontSize :: RunElement (FontSize) IO (GtkState -> GtkState)
+    runFontSize (FontSize (FontSize' changeSize)) runner handleEvent state =
+      state {gtkFontSize = changeSize (gtkFontSize state)}
 
-runFontWeight :: RunElement (Set FontWeight) IO (GtkM Gtk.Widget)
-runFontWeight (Set weight markup) runner handleEvent =
-  local (\s -> s {gtkFontWeight = weight}) $
-    runMarkup runner handleEvent markup
+    runFontWeight :: RunElement (FontWeight) IO (GtkState -> GtkState)
+    runFontWeight (FontWeight weight) runner handleEvent state =
+      state {gtkFontWeight = weight}
 
-runFontStyle :: RunElement (Set FontStyle) IO (GtkM Gtk.Widget)
-runFontStyle (Set style markup) runner handleEvent =
-  local (\s -> s {gtkFontStyle = style}) $
-    runMarkup runner handleEvent markup
+    runFontStyle :: RunElement (FontStyle) IO (GtkState -> GtkState)
+    runFontStyle (FontStyle style) runner handleEvent state =
+      state {gtkFontStyle = style}
 
-runOrientation :: RunElement (Set Orientation) IO (GtkM Gtk.Widget)
-runOrientation (Set orientation markup) runner handleEvent =
-  local (\s -> s {gtkOrientation = orientation}) $
-    runMarkup runner handleEvent markup
+    runOrientation :: RunElement (Orientation) IO (GtkState -> GtkState)
+    runOrientation (Orientation orientation) runner handleEvent state =
+      state {gtkOrientation = orientation}
 
-runFontColour :: RunElement (Set FontColour) IO (GtkM Gtk.Widget)
-runFontColour (Set colour markup) runner handleEvent =
-  local (\s -> s {gtkFontColour = colour}) $
-    runMarkup runner handleEvent markup
+    runFontColour :: RunElement (FontColour) IO (GtkState -> GtkState)
+    runFontColour (FontColour colour) runner handleEvent state =
+      state {gtkFontColour = colour}
 
 runFlowLayout :: RunElement FlowLayout IO (GtkM Gtk.Widget)
 runFlowLayout (FlowLayout children) runner handleEvent = do
@@ -156,26 +168,48 @@ runGridLayout (GridLayout gridOptions children) runner handleEvent = do
             (fromIntegral $ gridChildHeight childOptions)
         pure child
 
+runTextInput :: RunElement TextInput IO (GtkM Gtk.Widget)
+runTextInput _ _ handleEvent = do
+  entry <- Gtk.new Gtk.Entry []
+  widget <- Gtk.toWidget entry
+  fontCss >>= addCssToWidget widget
+  pure widget
+
+runSpecificTextInputOptions :: RunElement (SpecificOptions TextInput '[TextChange, Activate]) IO (GtkM Gtk.Widget)
+runSpecificTextInputOptions (SpecificOptions options textInput) runner handleEvent = do
+  let eventRunner = emptyRunner |-> runTextChange |-> runTextEnter
+  let eventHooks entry = sequence $ ($entry) <$> (runMarkup eventRunner handleEvent <$> options)
+  runMarkup (runner |-> runTextInput eventHooks) handleEvent textInput
+  where 
+    runTextInput f (TextInput) _ _ = do
+      entry <- Gtk.new Gtk.Entry []
+      f entry
+      widget <- Gtk.toWidget entry
+      fontCss >>= addCssToWidget widget
+      pure widget
+    runTextChange (TextChange f) _ handleEvent entry = Gtk.on entry #changed (Gtk.entryGetText entry >>= handleEvent . f) *> pure ()
+    runTextEnter (Activate e) _ handleEvent entry = Gtk.on entry #activate (handleEvent e) *> pure ()
+
 fontCss :: GtkM T.Text
 fontCss = foldl (<>) "" <$> sequenceA [ask (fontColour . gtkFontColour), ask (fontSize . gtkFontSize), ask (fontStyle . gtkFontStyle), ask (fontWeight . gtkFontWeight)]
   where
-    fontColour (FontColour colour) = "color:" <> T.pack (sRGB24show colour) <> ";"
+    fontColour (FontColour' colour) = "color:" <> T.pack (sRGB24show colour) <> ";"
     fontSize size = "font-size:" <> T.pack (show size) <> "px;"
     fontStyle style =
       let styleText = case style of
             RegularStyle -> "normal"
             ItalicStyle -> "italic"
        in "font-style:" <> styleText <> ";"
-    fontWeight (FontWeight weight) = "font-weight:" <> T.pack (show weight) <> ";"
+    fontWeight (FontWeight' weight) = "font-weight:" <> T.pack (show weight) <> ";"
 
-defaultGtkState :: IO GtkState
-defaultGtkState = newIORef 0 <&> \ref -> GtkState Vertical (FontColour black) (FontWeight 400) RegularStyle 15 ref
+defaultGtkState :: IO (GtkState)
+defaultGtkState = newIORef 0 <&> \ref -> GtkState Vertical (FontColour' black) (FontWeight' 400) RegularStyle 15 ref
 
 data GtkState = GtkState
-  { gtkOrientation :: Set Orientation,
-    gtkFontColour :: Set FontColour,
-    gtkFontWeight :: Set FontWeight,
-    gtkFontStyle :: Set FontStyle,
+  { gtkOrientation :: Orientation,
+    gtkFontColour :: FontColour,
+    gtkFontWeight :: FontWeight,
+    gtkFontStyle :: FontStyle,
     gtkFontSize :: Int,
     gtkId :: IORef Int
   }
@@ -203,7 +237,7 @@ toWidget handleEvent markup = do
   gtkState <- defaultGtkState
   runGtkM gtkState $ runMarkup gtkRunner handleEvent markup
 
-newtype GtkM a = GtkM (R.ReaderT GtkState IO a) deriving (Functor, Applicative, Monad, MonadIO)
+newtype GtkM a = GtkM (R.ReaderT (GtkState) IO a) deriving (Functor, Applicative, Monad, MonadIO)
 
 ask :: (GtkState -> a) -> GtkM a
 ask f = GtkM $ f <$> R.ask

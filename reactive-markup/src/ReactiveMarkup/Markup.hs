@@ -30,7 +30,7 @@ module ReactiveMarkup.Markup
   -- ** Type families
   , SubList
   , Merge
-  , Unique
+  , RunnerMerge
   , Void
   , Typeable
   )
@@ -50,7 +50,7 @@ import Data.Void (Void)
 -- children: Declares which type of other 'Element's this 'Element' may hold.
 -- 
 -- event: The event that might be emitted from this event.
-data family Element  (elementType :: *) (children :: [*]) event 
+data family Element (elementType :: *) (children :: [*]) event 
 
 -- | 'Markup' wraps an 'Element'. elems corresponds to the elements that are directly wrapped.
 -- 
@@ -60,7 +60,7 @@ data family Element  (elementType :: *) (children :: [*]) event
 -- 
 -- event: The event that might be emitted from this 'Markup'.
 data Markup (elems :: [*])  (children :: [*])  (event :: *) where 
-  Markup :: Typeable x => Element x children internalEvent -> (internalEvent -> event) -> Markup elems children event
+  Markup :: Typeable (GetId x) => Element x children internalEvent -> (internalEvent -> event) -> Markup elems children event
 
 -- | A simplified version of 'Markup' where elems and children are the same.
 type SimpleMarkup elems = Markup elems elems
@@ -70,7 +70,7 @@ instance Functor (Markup elems children) where
 
 
 -- | Wraps any 'Element' in 'Markup'.
-toMarkup :: (Typeable t) => Element t children e -> Markup '[t] children e
+toMarkup :: (Typeable (GetId t)) => Element t children e -> Markup '[t] children e
 toMarkup element = Markup element id
 
 -- | Transforms a 'Markup' to 'SimpleMarkup'.
@@ -104,11 +104,11 @@ emptyRunner = Runner HM.empty
 type RunElement t m result = (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m ()) -> result)
 
 -- | Allows a 'Runner' to handle one more element.
-(|->) :: forall t m result elems. (Typeable t) => 
+(|->) :: forall t m result elems. (Typeable (GetId t)) => 
   Runner elems m result
    -> RunElement t m result -- ^ This function is used to handle 'Element's.
-   -> Runner (Merge elems '[t]) m result -- ^ Runner has additional capabilities and can now run 'Element' t.
-(|->) (Runner hashMap) f = Runner (HM.insert (typeRep $ Proxy @t) (Function $ unsafeCoerce f) (hashMap))
+   -> Runner (RunnerMerge elems '[t]) m result -- ^ Runner has additional capabilities and can now run 'Element' t.
+(|->) (Runner hashMap) f = Runner (HM.insert (typeRep $ Proxy @(GetId t)) (Function $ unsafeCoerce f) (hashMap))
 
 -- | You can always reduce the capabilities of a 'Runner' as long as the resulting capabilities are within the original. 
 -- Should be used carefully since it breaks type inference.
@@ -117,7 +117,7 @@ reduceRunner runner = unsafeCoerce runner
 
 -- | Runs a 'Markup' with the given 'Runner'. The types of 'Markup' and 'Runner' must match exactly.
 runMarkupExact :: forall elems children e m result. 
-  Runner (Merge elems children) m result 
+  Runner (RunnerMerge elems children) m result 
   -> (e -> m ()) -- ^ Used to handle the event that this 'Markup' might emit.
   -> Markup elems children e -> result
 runMarkupExact runner markup = runMarkupWithTwoExact (unsafeCoerce runner) (unsafeCoerce runner) markup
@@ -130,8 +130,8 @@ runMarkupWithTwoExact :: forall elems children e m result.
   -> result
 runMarkupWithTwoExact (Runner hashMap) runner2 handleEvent (Markup elem mapEvent) = runMarkupExact' (elem) mapEvent
   where 
-    runMarkupExact' :: forall x internalEvent. Typeable x => Element x children internalEvent -> (internalEvent -> e) -> result
-    runMarkupExact' elem mapEvent = unwrap (hashMap HM.! (typeRep (Proxy @x)))
+    runMarkupExact' :: forall x internalEvent. Typeable (GetId x) => Element x children internalEvent -> (internalEvent -> e) -> result
+    runMarkupExact' elem mapEvent = unwrap (hashMap HM.! (typeRep (Proxy @(GetId x))))
       where 
         unwrap :: Function m result -> result
         unwrap (Function f) = unsafeCoerce f elem runner2 (handleEvent . mapEvent)
@@ -144,7 +144,7 @@ runMarkup :: forall exec elems children e m result. SubList (Merge elems childre
   -> (e -> m ()) -- ^ Used to handle the event that this 'Markup' might emit.
   -> Markup elems children e
   -> result
-runMarkup runner = runMarkupExact (reduceRunner runner)
+runMarkup runner = runMarkupExact (unsafeCoerce runner)
 
 -- The preferred way to run a 'Markup' with two 'Runner's. The first 'Runner' is used for the directly wrapped
 -- 'Element's and the second for their children.
@@ -184,18 +184,53 @@ getSimpleMarkups = fmap unsafeCoerce . getMarkups
 -- | Calculates if a type-level list is a sub list of another one.
 type SubList (sub :: [*]) (full :: [*]) = full ~ Merge full sub
 
--- | Merges two type-level sub-lists so that no element occurs twice and the given order is maintained.
-type family Merge (xs :: [*]) (ys :: [*]) where
+type family RunnerMerge (xs :: [*]) (ys :: [*]) where
+  RunnerMerge xs xs = xs
+  RunnerMerge '[] ys = ys
+  RunnerMerge xs '[] = xs
+  RunnerMerge (x:xs) ys = MaybeAdd (Equal (Collect x ys) x) x (RunnerMerge xs (Remove x ys))
+
+type family UniqueElements (xs :: [*]) where
+  UniqueElements (x:xs) = MaybeAdd (Equal (Collect x xs) x) x xs
+
+type family Equal a b where
+  Equal a a = 'True
+  Equal _ _ = 'False
+
+type family MaybeAdd (b :: Bool) x (xs) where
+  MaybeAdd 'True x xs = x:xs
+  MaybeAdd 'False _ xs= xs
+
+type family Merge (as :: [*]) (bs :: [*]) where
   Merge xs xs = xs
-  Merge '[] ys = ys
   Merge xs '[] = xs
-  Merge (x:xs) ys = x : Merge xs (Remove x ys)
+  Merge '[] ys = ys
+  Merge (x:xs) ys = Collect x ys : (Merge xs (CollectRemove x ys))
+
+type family MergeElements a b :: * where
+  MergeElements a a = a
+  MergeElements (f a) (f b) = f (Merge a b)
+  MergeElements x _ = x
+
+type family Collect a (as :: [*]) :: * where
+  Collect a '[] = a
+  Collect a (x:xs) = Collect (MergeElements a x) xs
+
+type family CollectRemove a (as :: [*]) where
+  CollectRemove _ '[] = '[]
+  CollectRemove a (a:xs) = CollectRemove a xs
+  CollectRemove (f (a :: [*])) (f _:xs) = CollectRemove (f a) xs 
+  CollectRemove a (x:xs) = x : CollectRemove a xs
 
 type family Remove x (xs :: [*]) where
   Remove x (x:as) = Remove x as
   Remove x (a:as) = a : Remove x as
   Remove x '[] = '[]
 
-type family Unique (xs :: [*]) where
-  Unique '[] = '[]
-  Unique (x:xs) = x:Remove x xs
+type family GetId x :: * where
+  GetId (f a b c d (x :: [*])) = f a b c d '[]
+  GetId (f a b c (x :: [*])) = f a b c '[]
+  GetId (f a b (x :: [*])) = f a b '[]
+  GetId (f a (x :: [*])) = f a '[]
+  GetId (f (x :: [*])) = f '[]
+  GetId x = x
