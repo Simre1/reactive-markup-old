@@ -6,10 +6,10 @@ module Main where
 
 import Data.List (find)
 import qualified Data.Text as T
-import ReactiveMarkup.Markup
 import Examples.BasicElements
 import Examples.GridLayout
 import Examples.TextInput
+import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
 main :: IO ()
@@ -38,10 +38,10 @@ main = do
         askForExampleName
 
 examples :: [(String, SimpleMarkup GtkElements Void)]
-examples = 
-  [ ("basic-elements", expandMarkup basicElements)
-  , ("grid-layout", expandMarkup grid)
-  , ("text-input", expandMarkup textInputExample)
+examples =
+  [ ("basic-elements", expandMarkup basicElements),
+    ("grid-layout", expandMarkup grid),
+    ("text-input", expandMarkup textInputExample)
   ]
 
 presetMarkup :: Maybe String
