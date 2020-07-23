@@ -17,6 +17,7 @@ module ReactiveMarkup.Markup
     (|->),
     RunElement,
     reduceRunner,
+    mergeRunners,
     runMarkup,
     runMarkupWithTwo,
     runMarkupExact,
@@ -29,10 +30,17 @@ module ReactiveMarkup.Markup
     getMarkups,
     getSimpleMarkups,
 
+    -- ** Options
+    Options(..),
+    makeOption,
+    (%%),
+    none,
+
     -- ** Type families
     SubList,
     Merge,
     RunnerMerge,
+    type (|->),
     Void,
     Typeable,
   )
@@ -121,6 +129,10 @@ type RunElement t m result = (forall event. Element t '[Children] event -> Runne
 reduceRunner :: SubList elems2 elems1 => Runner elems1 m result -> Runner elems2 m result
 reduceRunner runner = unsafeCoerce runner
 
+-- | In case of duplicate elements, the second runner is used. 
+mergeRunners :: Runner elems1 m result -> Runner elems2 m result -> Runner (RunnerMerge elems1 elems2) m result
+mergeRunners (Runner hm1) (Runner hm2) = Runner $ HM.union hm2 hm1
+
 -- | Runs a 'Markup' with the given 'Runner'. The types of 'Markup' and 'Runner' must match exactly.
 runMarkupExact ::
   forall elems children e m result.
@@ -200,6 +212,22 @@ getMarkups (MarkupBuilder markups) = markups
 getSimpleMarkups :: MarkupBuilder elems children e -> [SimpleMarkup (Merge elems children) e]
 getSimpleMarkups = fmap unsafeCoerce . getMarkups
 
+-- TODO: Documentation
+
+newtype Options (os :: [*]) e = Options [SimpleMarkup os e]
+
+(%%) ::
+  Options os1 e ->
+  Options os2 e ->
+  Options (Merge os1 os2) e
+(%%) (Options options1) (Options options2) = Options (unsafeCoerce options1 ++ unsafeCoerce options2)
+
+none :: Options '[] e
+none = Options []
+
+makeOption :: Typeable (GetId t) => Element t '[] e -> Options '[t] e
+makeOption elem = Options [toSimpleMarkup $ toMarkup elem]
+
 -- TODO: Better Type errors!!!
 
 -- | Calculates if a type-level list is a sub list of another one.
@@ -213,6 +241,8 @@ type family RunnerMerge (xs :: [*]) (ys :: [*]) where
   RunnerMerge '[] ys = ys
   RunnerMerge xs '[] = xs
   RunnerMerge (x : xs) ys = MaybeAdd (Equal (Collect x ys) x) x (RunnerMerge xs (Remove x ys))
+
+type as |-> bs = RunnerMerge as bs
 
 type family Equal a b where
   Equal a a = 'True

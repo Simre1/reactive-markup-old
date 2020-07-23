@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6a68e84e6bdb86b60b20dea02215373fe56d6c529e7947e9959cb103a3e813fb
+-- hash: 593ed79b464d9fd3e36928e7de2395b3d1d806d97a14830faab139fd39b6dfb4
 
 name:           reactive-markup-gtk
 version:        0.1.0.0
@@ -31,6 +31,7 @@ library
   build-depends:
       base >=4.7 && <5
     , colour >2.3 && <2.4
+    , gi-gdk ==3.0.*
     , gi-gtk ==3.0.*
     , haskell-gi-base ==0.23.*
     , reactive-markup

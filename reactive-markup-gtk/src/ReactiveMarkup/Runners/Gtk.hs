@@ -8,37 +8,37 @@ module ReactiveMarkup.Runners.Gtk
   )
 where
 
-import Control.Monad (join, replicateM_)
+import Control.Monad (when, join, replicateM_)
 import Control.Monad.IO.Class
 import qualified Control.Monad.Trans.Reader as R
-import Data.Colour.Names (black)
-import Data.Colour.SRGB (sRGB24show)
+import Data.Colour
+import Data.Colour.SRGB
 import Data.Functor ((<&>))
 import qualified Data.GI.Base.Attributes as Gtk (AttrOpTag (..))
 import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef, writeIORef)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T (encodeUtf8)
 import qualified GI.Gtk as Gtk
+import qualified GI.Gdk as Gdk
 import ReactiveMarkup.Elements.Basic
 import ReactiveMarkup.Elements.Input
 import ReactiveMarkup.Elements.Layout
-import ReactiveMarkup.Elements.Settings
 import ReactiveMarkup.Markup
 import ReactiveMarkup.SimpleEvents
+import ReactiveMarkup.Elements.Options
 
 type GtkElements =
-  [ Label,
-    List,
-    SpecificOptions List '[Orientation],
-    Button,
+  [ Label ('[Text] |-> Font),
+    List '[Orientation],
+    Button ('[Text, Activate, Click] |-> Font),
     DynamicState,
     DynamicMarkup,
-    GeneralOptions [FontSize, FontWeight, FontStyle, FontColour],
-    FlowLayout,
+    FlowLayout '[Orientation],
     GridLayout,
-    TextInput,
-    SpecificOptions TextInput '[TextChange, Activate]
+    TextInput ('[Text, TextChange, Activate] |-> Font)
   ]
+
+type Font = '[FontSize, FontWeight, FontStyle, FontColour]
 
 -- | Basic `Runner` for GTK 3. Could be improved drastically by utilizing a similar technique to virtual DOM.
 -- gtkRunner :: Runner GtkElements IO (GtkM (Ret a))
@@ -48,59 +48,77 @@ gtkRunner =
     -- basic elements
     |-> runLabel
     |-> runList
-    |-> runSpecificListOptions
     |-> runButton
     |-> runDynamicState
     |-> runDynamicMarkup
     -- styling elements
-    |-> runGeneralOptions
     -- additional layouts
     |-> runFlowLayout
     |-> runGridLayout
     -- input elements
     |-> runTextInput
-    |-> runSpecificTextInputOptions
 
-runLabel :: RunElement Label IO (GtkM Gtk.Widget)
-runLabel (Label text) _ _ = do
-  label <- Gtk.new Gtk.Label [#label Gtk.:= text]
+runFontOptions :: forall result. (T.Text -> result) -> Runner Font IO result
+runFontOptions f = emptyRunner |-> runFontSize |-> runFontWeight |-> runFontStyle |-> runFontColour
+  where 
+    runFontSize :: RunElement FontSize IO result
+    runFontSize fontSize _ _ = f $ 
+      let sizeText = case fontSize of
+            FontPixel i -> T.pack (show i) <> "px"
+            FontPercent i -> T.pack (show i) <> "%"
+      in "font-size: " <> sizeText <> ";"
+    runFontWeight :: RunElement FontWeight IO result
+    runFontWeight (FontWeight weight) _ _ = f $ "font-weight: " <> T.pack (show weight) <> ";"
+    runFontStyle :: RunElement FontStyle IO result
+    runFontStyle fontStyle _ _ = f $
+      let styleText = case fontStyle of
+            RegularStyle -> ""
+            ItalicStyle -> "font-style: italic;"
+      in styleText
+    runFontColour :: RunElement FontColour IO result
+    runFontColour (FontColour colour) _ _ = f $ "color:" <> T.pack (sRGB24show colour) <> ";"
+
+runLabel :: RunElement (Label ('[Text] |-> Font)) IO (GtkM Gtk.Widget)
+runLabel (Label (Options options)) _ handleEvent = do
+  label <- Gtk.new Gtk.Label []
   widget <- Gtk.toWidget label
-  fontCss >>= addCssToWidget widget
+  css <- fmap T.concat $ sequenceA $
+            runMarkup (optionRunner label) handleEvent <$> options
+  addCssToWidget widget css
   pure widget
-
-runList :: RunElement List IO (GtkM Gtk.Widget)
-runList (List markups) runner handleEvent = do
-  boxLayout <- Gtk.new Gtk.Box [#orientation Gtk.:= Gtk.OrientationVertical]
-  sequenceA $ (\markup -> runMarkup runner handleEvent markup >>= #add boxLayout) <$> markups
-  Gtk.toWidget boxLayout
-
-runSpecificListOptions :: RunElement (SpecificOptions List '[Orientation]) IO (GtkM Gtk.Widget)
-runSpecificListOptions (SpecificOptions options listMarkup) runner handleEvent = do
-  let gtkOptions = runMarkup (emptyRunner |-> runOrientation) handleEvent <$> options
-  runMarkupWithTwo
-    ( emptyRunner |-> \(List markups) runnerInner handleEvent -> do
-        boxLayout <- Gtk.new Gtk.Box [#orientation Gtk.:= Gtk.OrientationVertical]
-        Gtk.set boxLayout gtkOptions
-        sequenceA $ (\markup -> runMarkup runnerInner handleEvent markup >>= #add boxLayout) <$> markups
-        Gtk.toWidget boxLayout
-    )
-    runner
-    handleEvent
-    listMarkup
   where
-    runOrientation :: RunElement (Orientation) IO (Gtk.AttrOp Gtk.Box 'Gtk.AttrSet)
-    runOrientation (Orientation orientation) runner handleEvent =
+    optionRunner :: Gtk.Label -> Runner ('[Text] |-> Font) IO (GtkM T.Text)
+    optionRunner label = mergeRunners (textRunner label) (runFontOptions (pure))
+    textRunner :: Gtk.Label -> Runner '[Text] IO (GtkM T.Text)
+    textRunner label = emptyRunner |-> (\(Text t) _ _ -> Gtk.set label [#label Gtk.:= t] *> pure "")
+
+runList :: RunElement (List '[Orientation]) IO (GtkM Gtk.Widget)
+runList (List (Options options) children) runner handleEvent = do
+  let gtkOptions = runMarkup (emptyRunner |-> runOrientation) handleEvent <$> options
+  boxLayout <- Gtk.new Gtk.Box ((#orientation Gtk.:= Gtk.OrientationVertical):gtkOptions)
+  sequenceA $ (\markup -> runMarkup runner handleEvent markup >>= #add boxLayout) <$> children
+  Gtk.toWidget boxLayout
+  where
+    runOrientation :: RunElement (Orientation) IO (Gtk.AttrOp Gtk.Box 'Gtk.AttrConstruct)
+    runOrientation (orientation) runner handleEvent =
       case orientation of
         Vertical -> #orientation Gtk.:= Gtk.OrientationVertical
         Horizontal -> #orientation Gtk.:= Gtk.OrientationHorizontal
 
-runButton :: RunElement Button IO (GtkM Gtk.Widget)
-runButton (Button text) runner handleEvent = do
-  button <- Gtk.new Gtk.Button [#label Gtk.:= text]
-  Gtk.on button #clicked (handleEvent Click)
+runButton :: RunElement (Button ('[Text, Activate, Click] |-> Font)) IO (GtkM Gtk.Widget)
+runButton (Button (Options options)) runner handleEvent = do
+  button <- Gtk.new Gtk.Button []
+  css <- fmap T.concat $ sequence $ runMarkup (optionsRunner button) handleEvent <$> options
   widget <- Gtk.toWidget button
-  fontCss >>= addCssToWidget widget
+  when (css /= "") $ addCssToWidget widget css
   pure widget
+  where 
+    optionsRunner :: Gtk.Button -> Runner ('[Text,Activate, Click] |-> Font) IO (GtkM T.Text)
+    optionsRunner gtkButton = flip mergeRunners (runFontOptions pure) $ emptyRunner
+      |-> (\(Text t) _ _ -> Gtk.set gtkButton [#label Gtk.:= t] *> pure "")
+      |-> (\(Activate e) _ handleEvent -> Gtk.on gtkButton #activate (handleEvent e) *> pure "")
+      |-> (\(Click e) _ handleEvent -> Gtk.on gtkButton #clicked (handleEvent e) *> pure "")
+
 
 runDynamicState :: RunElement DynamicState IO (GtkM Gtk.Widget)
 runDynamicState (DynamicState state mapEvent generateMarkup) childRunner handleOuterEvent = do
@@ -134,46 +152,15 @@ runDynamicMarkup (DynamicMarkup dynamicState generateMarkup) childRunner handleE
   Gtk.on widget #destroy (liftES unregisterWidgetUpdate)
   pure widget
 
-runGeneralOptions :: RunElement (GeneralOptions '[FontSize, FontWeight, FontStyle, FontColour]) IO (GtkM Gtk.Widget)
-runGeneralOptions (GeneralOptions options markup) runner handleEvent = do
-  let optionsRunner = emptyRunner |-> runFontSize |-> runFontWeight |-> runFontStyle |-> runFontColour
-      stateChanges = runMarkup optionsRunner handleEvent <$> options
-  local (foldl (.) id stateChanges) $ runMarkup runner handleEvent markup
-  where
-    runFontSize :: RunElement (FontSize) IO (GtkState -> GtkState)
-    runFontSize (FontSize (FontSize' changeSize)) runner handleEvent state =
-      state {gtkFontSize = changeSize (gtkFontSize state)}
-    runFontWeight :: RunElement (FontWeight) IO (GtkState -> GtkState)
-    runFontWeight (FontWeight weight) runner handleEvent state =
-      state {gtkFontWeight = weight}
-    runFontStyle :: RunElement (FontStyle) IO (GtkState -> GtkState)
-    runFontStyle (FontStyle style) runner handleEvent state =
-      state {gtkFontStyle = style}
-    runFontColour :: RunElement (FontColour) IO (GtkState -> GtkState)
-    runFontColour (FontColour colour) runner handleEvent state =
-      state {gtkFontColour = colour}
-
-runFlowLayout :: RunElement FlowLayout IO (GtkM Gtk.Widget)
-runFlowLayout (FlowLayout children) runner handleEvent = do
-  flowLayout <- Gtk.new Gtk.FlowBox []
-  sequenceA $ (\child -> runMarkup runner handleEvent child >>= #add flowLayout) <$> children
-  Gtk.toWidget flowLayout
-
-runSpecificFlowLayoutOptions :: RunElement (SpecificOptions FlowLayout '[Orientation]) IO (GtkM Gtk.Widget)
-runSpecificFlowLayoutOptions (SpecificOptions options flowMarkup) runner handleEvent = do
+runFlowLayout :: RunElement (FlowLayout '[Orientation]) IO (GtkM Gtk.Widget)
+runFlowLayout (FlowLayout (Options options) children) runner handleEvent = do
   let gtkOptions = runMarkup (emptyRunner |-> runOrientation) handleEvent <$> options
-  runMarkupWithTwo
-    ( emptyRunner |-> \(FlowLayout markups) runnerInner handleEvent -> do
-        flowLayout <- Gtk.new Gtk.FlowBox gtkOptions
-        sequenceA $ (\markup -> runMarkup runnerInner handleEvent markup >>= #add flowLayout) <$> markups
-        Gtk.toWidget flowLayout
-    )
-    runner
-    handleEvent
-    flowMarkup
+  flowLayout <- Gtk.new Gtk.FlowBox gtkOptions
+  sequenceA $ (\markup -> runMarkup runner handleEvent markup >>= #add flowLayout) <$> children
+  Gtk.toWidget flowLayout
   where
     runOrientation :: RunElement (Orientation) IO (Gtk.AttrOp Gtk.FlowBox 'Gtk.AttrConstruct)
-    runOrientation (Orientation orientation) runner handleEvent =
+    runOrientation (orientation) runner handleEvent =
       case orientation of
         Vertical -> #orientation Gtk.:= Gtk.OrientationVertical
         Horizontal -> #orientation Gtk.:= Gtk.OrientationHorizontal
@@ -198,49 +185,38 @@ runGridLayout (GridLayout gridOptions children) runner handleEvent = do
         (fromIntegral $ gridChildHeight childOptions)
       pure child
 
-runTextInput :: RunElement TextInput IO (GtkM Gtk.Widget)
-runTextInput _ _ handleEvent = do
-  entry <- Gtk.new Gtk.Entry []
-  widget <- Gtk.toWidget entry
-  fontCss >>= addCssToWidget widget
+runTextInput :: RunElement (TextInput ('[Text, TextChange, Activate] |-> Font)) IO (GtkM Gtk.Widget)
+runTextInput (TextInput (Options options)) runner handleEvent = do
+  gtkEntry <- Gtk.new Gtk.Entry []
+  css <- fmap T.concat $ sequenceA $ runMarkup (optionsRunner gtkEntry) handleEvent <$> options
+  widget <- Gtk.toWidget gtkEntry
+  addCssToWidget widget css
   pure widget
-
-runSpecificTextInputOptions :: RunElement (SpecificOptions TextInput '[TextChange, Activate]) IO (GtkM Gtk.Widget)
-runSpecificTextInputOptions (SpecificOptions options textInput) runner handleEvent = do
-  let eventRunner = emptyRunner |-> runTextChange |-> runTextEnter
-  let eventHooks entry = sequence $ ($entry) <$> (runMarkup eventRunner handleEvent <$> options)
-  runMarkup (runner |-> runTextInput eventHooks) handleEvent textInput
   where
-    runTextInput f (TextInput) _ _ = do
-      entry <- Gtk.new Gtk.Entry []
-      f entry
-      widget <- Gtk.toWidget entry
-      fontCss >>= addCssToWidget widget
-      pure widget
-    runTextChange (TextChange f) _ handleEvent entry = Gtk.on entry #changed (Gtk.entryGetText entry >>= handleEvent . f) *> pure ()
-    runTextEnter (Activate e) _ handleEvent entry = Gtk.on entry #activate (handleEvent e) *> pure ()
-
-fontCss :: GtkM T.Text
-fontCss = foldl (<>) "" <$> sequenceA [ask (fontColour . gtkFontColour), ask (fontSize . gtkFontSize), ask (fontStyle . gtkFontStyle), ask (fontWeight . gtkFontWeight)]
-  where
-    fontColour (FontColour' colour) = "color:" <> T.pack (sRGB24show colour) <> ";"
-    fontSize size = "font-size:" <> T.pack (show size) <> "px;"
-    fontStyle style =
-      let styleText = case style of
-            RegularStyle -> "normal"
-            ItalicStyle -> "italic"
-       in "font-style:" <> styleText <> ";"
-    fontWeight (FontWeight' weight) = "font-weight:" <> T.pack (show weight) <> ";"
+    optionsRunner :: Gtk.Entry -> Runner ('[Text, TextChange, Activate] |-> Font) IO (GtkM T.Text)
+    optionsRunner entry = flip mergeRunners (runFontOptions pure) $ emptyRunner 
+      |-> (\(Text t) _ _ -> Gtk.set entry [#text Gtk.:= t] *> pure "")
+      |-> (\(TextChange f) _ handleEvent -> Gtk.on entry #changed (Gtk.entryGetText entry >>= handleEvent . f) *> pure "")
+      |-> (\(Activate e) _ handleEvent -> Gtk.on entry #activate (handleEvent e) *> pure "")
 
 defaultGtkState :: IO (GtkState)
-defaultGtkState = newIORef 0 <&> \ref -> GtkState (FontColour' black) (FontWeight' 400) RegularStyle 15 ref
-
+defaultGtkState = do
+  idRef <- newIORef 0
+  -- styleContext <- Gtk.styleContextNew
+  -- colour <- getColor styleContext
+  pure $ GtkState idRef
+    where 
+      getColor :: Gtk.StyleContext -> IO (Colour Double)
+      getColor styleContext = do
+        gtkColour <- Gtk.styleContextGetColor styleContext []
+        r <- Gdk.getRGBARed gtkColour
+        g <- Gdk.getRGBAGreen gtkColour
+        b <- Gdk.getRGBABlue gtkColour
+        a <- Gdk.getRGBAAlpha gtkColour
+        pure (sRGB r g b)
+        
 data GtkState = GtkState
-  { gtkFontColour :: FontColour,
-    gtkFontWeight :: FontWeight,
-    gtkFontStyle :: FontStyle,
-    gtkFontSize :: Int,
-    gtkId :: IORef Int
+  { gtkId :: IORef Int
   }
 
 -- | Quick setup for GTKM to display a widget generated by 'runMarkup' in combination with 'gtkRunner'.

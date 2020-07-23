@@ -12,18 +12,15 @@ module ReactiveMarkup.Elements.Layout
 where
 
 import qualified Data.Text as T
-import ReactiveMarkup.Elements.Settings
 import ReactiveMarkup.Markup
 
-data FlowLayout deriving (Typeable)
+data FlowLayout (options :: [*]) deriving (Typeable)
 
-data instance Element FlowLayout merged e
-  = forall elems children.
-    merged ~ Merge elems children =>
-    FlowLayout [Markup elems children e]
+data instance Element (FlowLayout options) elems e =
+    FlowLayout (Options options e) [SimpleMarkup elems e]
 
-flowLayout :: MarkupBuilder elems children e -> Markup '[FlowLayout] (Merge elems children) e
-flowLayout markupBuilder = toMarkup $ FlowLayout (getMarkups markupBuilder)
+flowLayout :: Options options e -> MarkupBuilder elems children e -> Markup '[FlowLayout options] (Merge elems children) e
+flowLayout options markupBuilder = toMarkup $ FlowLayout options (getSimpleMarkups markupBuilder)
 
 data GridLayout
 

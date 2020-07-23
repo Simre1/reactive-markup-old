@@ -7,22 +7,21 @@ module Examples.TextInput where
 import qualified Data.Text as T
 import ReactiveMarkup.Elements.Basic
 import ReactiveMarkup.Elements.Input
-import ReactiveMarkup.Elements.Settings
+import ReactiveMarkup.Elements.Options
 import ReactiveMarkup.Markup
 
-textInputExample :: Markup '[GeneralOptions '[FontSize]] '[List, Label, DynamicState, SpecificOptions TextInput '[TextChange], DynamicMarkup] e
+textInputExample :: Markup '[List '[]] '[Label '[Text], DynamicState, List '[], TextInput '[TextChange], DynamicMarkup] e
 textInputExample =
-  fontSizePx 30
-    %-> list
+ list none
       ( emptyMarkupBuilder
-          +-> label "Write some Text"
+          +-> label (text "Write some Text")
           +-> dynamicState
             ""
             (\_ t -> (Just t, Nothing))
-            ( \text ->
-                list $
+            (\dynText ->
+                list none $
                   emptyMarkupBuilder
-                    +-> onTextChange id %-> textInput
-                    +-> dynamicMarkup text (\t -> label t)
+                    +-> textInput (onTextChange id)
+                    +-> dynamicMarkup dynText (\t -> label $ text t)
             )
       )

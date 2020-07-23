@@ -5,7 +5,6 @@ module ReactiveMarkup.Elements.Basic
     list,
     Button,
     button,
-    ButtonInfo (..),
     DynamicState,
     dynamicState,
     DynamicMarkup,
@@ -19,31 +18,30 @@ import qualified Data.Text as T
 import ReactiveMarkup.Markup
 import ReactiveMarkup.SimpleEvents
 
-data Label deriving (Typeable)
+data Label (options :: [*]) deriving (Typeable)
 
-data instance Element Label elems e = Label T.Text
+data instance Element (Label options) elems e = Label (Options options e)
 
 -- | Just a label element.
-label :: T.Text -> Markup '[Label] '[] e
-label text = toMarkup $ Label text
+label :: Options options e -> Markup '[Label options] '[] e
+label = toMarkup . Label
 
-data List deriving (Typeable)
+data List (options :: [*]) deriving (Typeable)
 
-data instance Element List merged e = forall direct transitive. merged ~ (Merge direct transitive) => List [Markup direct transitive e]
+data instance Element (List options) elems e =
+    List (Options options e) [SimpleMarkup elems e]
 
 -- | Allows to combine multiple elements into one.
 -- You can create an empty `MarkupBuilder` with `emptyMarkupBuilder` and add elements to it with `+->`.
-list :: MarkupBuilder elems1 elems2 e -> Markup '[List] (Merge elems1 elems2) e
-list ls = toMarkup $ List (getMarkups ls)
+list :: Options options e -> MarkupBuilder elems1 elems2 e -> Markup '[List options] (Merge elems1 elems2) e
+list options = toMarkup . List options . getSimpleMarkups
 
-data Button deriving (Typeable)
+data Button (options :: [*]) deriving (Typeable)
 
-data instance Element Button elems e = e ~ ButtonInfo => Button T.Text
-
-data ButtonInfo = Click
+data instance Element (Button options) elems e = Button (Options options e)
 
 -- | Button which emits the event `ButtonInfo`.
-button :: T.Text -> Markup '[Button] '[] ButtonInfo
+button :: Options options e -> Markup '[Button options] '[] e
 button = toMarkup . Button
 
 data DynamicState deriving (Typeable)

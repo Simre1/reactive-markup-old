@@ -1,12 +1,11 @@
 module ReactiveMarkup.Elements.Input where
 
 import qualified Data.Text as T
-import ReactiveMarkup.Elements.Settings
 import ReactiveMarkup.Markup
 
-data TextInput deriving (Typeable)
+data TextInput (options :: [*]) deriving (Typeable)
 
-data instance Element TextInput elems e = TextInput
+data instance Element (TextInput options) elems e = TextInput (Options options e)
 
-textInput :: Markup '[TextInput] '[] e
-textInput = toMarkup TextInput
+textInput :: Options options e -> Markup '[TextInput options] '[] e
+textInput = toMarkup . TextInput
