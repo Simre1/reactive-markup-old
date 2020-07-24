@@ -1,14 +1,11 @@
 name:                reactive-markup-examples
 version:             0.1.0.0
-#synopsis:
-#description:
 homepage:            https://github.com/Simre1/reactive-markup#readme
 license:             MIT
 author:              Author name here
 maintainer:          example@example.com
 copyright:           2020 Author name here
 category:            Web
-
 
 dependencies:
   - base >= 4.7 && < 5

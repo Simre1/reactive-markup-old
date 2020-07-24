@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9f4b7fbb91504ff8b18165bbef17a77c1d6c49035f549de6aaca8883f6ceb814
+-- hash: 2d2d40f847d10ee03ef578b570d600de58a62c75f55590d3cfebd80796639742
 
 name:           reactive-markup-examples
 version:        0.1.0.0
@@ -21,6 +21,7 @@ executable examples
   other-modules:
       Examples.BasicElements
       Examples.GridLayout
+      Examples.HotKey
       Examples.TextInput
       Paths_reactive_markup_examples
   hs-source-dirs:

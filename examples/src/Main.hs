@@ -9,6 +9,7 @@ import qualified Data.Text as T
 import Examples.BasicElements
 import Examples.GridLayout
 import Examples.TextInput
+import Examples.HotKey
 import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
@@ -41,7 +42,8 @@ examples :: [(String, SimpleMarkup GtkElements Void)]
 examples =
   [ ("basic-elements", expandMarkup basicElements),
     ("grid-layout", expandMarkup grid),
-    ("text-input", expandMarkup textInputExample)
+    ("text-input", expandMarkup textInputExample),
+    ("hot-key", expandMarkup hotKeyExample)
   ]
 
 presetMarkup :: Maybe String

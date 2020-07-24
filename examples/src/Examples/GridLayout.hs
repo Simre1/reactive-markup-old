@@ -11,6 +11,7 @@ import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 import ReactiveMarkup.Elements.Options
 
+grid :: Markup '[GridLayout] '[Label '[Text]] e
 grid = gridLayout
       (GridOptions 4 4)
       ( emptyMarkupBuilder

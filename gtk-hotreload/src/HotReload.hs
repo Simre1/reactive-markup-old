@@ -13,7 +13,7 @@ import ReactiveMarkup.Runners.Gtk
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 
-gtkWidget :: MVar (IO Gtk.Widget)
+gtkWidget :: MVar (Gtk.Window ->IO Gtk.Widget)
 gtkWidget = unsafePerformIO $ newEmptyMVar
 
 shouldQuit :: IORef Bool
@@ -58,7 +58,7 @@ setupHotReloading = do
                     makeWidget <- takeMVar gtkWidget
                     widgets <- Gtk.containerGetChildren win
                     forM_ widgets $ \w -> Gtk.containerRemove win w
-                    widget <- makeWidget
+                    widget <- makeWidget win
                     Gtk.containerAdd win widget
                     #showAll widget
                     pure True
@@ -85,7 +85,7 @@ hotReloadMarkup handleEvent markup = do
               _ -> putStrLn "You need to either input the character y or n and no other characters." *> handleUserInput
       handleUserInput
     Just _ -> do
-      putMVar gtkWidget $ toWidget handleEvent markup
+      putMVar gtkWidget $ \window -> toWidget window handleEvent markup
 
 hotReloadMarkupWithoutAsking :: SubList (Merge elems children) GtkElements => (e -> IO ()) -> Markup elems children e -> IO ()
 hotReloadMarkupWithoutAsking handleEvent markup = do
@@ -97,4 +97,4 @@ hotReloadMarkupWithoutAsking handleEvent markup = do
       threadDelay 2000000
       hotReloadMarkupWithoutAsking handleEvent markup
     Just _ -> do
-      putMVar gtkWidget $ toWidget handleEvent markup
+      putMVar gtkWidget $ \window -> toWidget window handleEvent markup
