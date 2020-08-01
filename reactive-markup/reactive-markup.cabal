@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f3a4a8eeb887fc0531a55cfb3bbea70524e4fabd78025e12837a2bd2a2b34ebc
+-- hash: 9a76188323539513f21848c1fca1b71ef712abdcf019a8620fda8a2442bf7c33
 
 name:           reactive-markup
 version:        0.1.0.0
@@ -26,6 +26,7 @@ library
       ReactiveMarkup.Elements.Basic
       ReactiveMarkup.Elements.Input
       ReactiveMarkup.Elements.Layout
+      ReactiveMarkup.Elements.Menu
       ReactiveMarkup.Elements.Options
       ReactiveMarkup.Markup
       ReactiveMarkup.SimpleEvents

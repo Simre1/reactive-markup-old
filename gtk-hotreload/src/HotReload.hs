@@ -67,7 +67,7 @@ setupHotReloading = do
       GLib.sourceRemove timer
       cleanUp
 
-hotReloadMarkup :: SubList (Merge elems children) GtkElements => (e -> IO ()) -> Markup elems children e -> IO ()
+hotReloadMarkup :: (SubList children GtkElements, GtkRootMarkup elems) => (e -> IO ()) -> Markup elems children e -> IO ()
 hotReloadMarkup handleEvent markup = do
   maybeThread <- readIORef gtkThread
   case maybeThread of
@@ -87,7 +87,7 @@ hotReloadMarkup handleEvent markup = do
     Just _ -> do
       putMVar gtkWidget $ \window -> toWidget window handleEvent markup
 
-hotReloadMarkupWithoutAsking :: SubList (Merge elems children) GtkElements => (e -> IO ()) -> Markup elems children e -> IO ()
+hotReloadMarkupWithoutAsking :: (SubList children GtkElements, GtkRootMarkup elems) => (e -> IO ()) -> Markup elems children e -> IO ()
 hotReloadMarkupWithoutAsking handleEvent markup = do
   maybeThread <- readIORef gtkThread
   case maybeThread of

@@ -5,6 +5,8 @@ module ReactiveMarkup.Elements.Basic
     list,
     Button,
     button,
+    Window,
+    window,
     DynamicState,
     dynamicState,
     DynamicMarkup,
@@ -13,7 +15,6 @@ module ReactiveMarkup.Elements.Basic
   )
 where
 
-import Data.Colour
 import qualified Data.Text as T
 import ReactiveMarkup.Markup
 import ReactiveMarkup.SimpleEvents
@@ -40,9 +41,17 @@ data Button (options :: [*]) deriving (Typeable)
 
 data instance Element (Button options) elems e = Button (Options options e)
 
--- | Button which emits the event `ButtonInfo`.
+-- | A simple button.
 button :: Options options e -> Markup '[Button options] '[] e
 button = toMarkup . Button
+
+data Window (options :: [*]) deriving (Typeable)
+
+data instance Element (Window options) elems e = Window (Options options e) (SimpleMarkup elems e)
+
+-- | A window. 
+window :: Options options e -> Markup elems children e -> Markup '[Window options] (Merge elems children) e
+window options = toMarkup . Window options . toSimpleMarkup
 
 data DynamicState deriving (Typeable)
 

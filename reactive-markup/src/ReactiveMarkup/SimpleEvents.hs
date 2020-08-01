@@ -44,7 +44,9 @@ module ReactiveMarkup.SimpleEvents
     modifyEvent,
     triggerEvent,
     runIOInES,
-
+    customBehavior,
+    customEvent,
+    customDynamic,
     -- ** Creating Event Handlers
     makeEventHandler,
     simpleEventHandler,
@@ -92,7 +94,7 @@ newtype Behavior a = Behavior {behaviorValue :: EventSetup a}
 -- | A 'Dynamic' is a combination of 'Event' and 'Behavior'.
 data Dynamic a = Dynamic {toBehavior :: Behavior a, toEvent :: Event a}
 
-current :: MonadES m => Behavior a -> m a
+current :: (MonadES m) => Behavior a -> m a
 current = liftES . behaviorValue
 
 apply :: Behavior (a -> b) -> Event a -> Event b
@@ -202,6 +204,15 @@ reactimate (Event reg) = liftES . reg
 -- | Allows you to run 'IO' in 'EventSetup'. Use with caution as arbitrary 'IO' in 'EventSetup' undermines its predictability and might cause problems for developers who expect that 'EventSetup' is only used for creating the event network.
 runIOInES :: IO a -> EventSetup a
 runIOInES = EventSetup
+
+customEvent :: (EventHandler a -> IO (IO ())) -> Event a
+customEvent f = Event $ fmap runIOInES . runIOInES . f
+
+customBehavior :: IO a -> Behavior a
+customBehavior = Behavior . runIOInES
+
+customDynamic :: Behavior a -> Event a -> Dynamic a
+customDynamic = Dynamic
 
 -- | Allows events to know the value of their previous execution!
 --
