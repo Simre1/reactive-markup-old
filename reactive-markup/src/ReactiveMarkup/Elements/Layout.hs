@@ -4,6 +4,7 @@ module ReactiveMarkup.Elements.Layout
     GridLayout,
     GridOptions (..),
     gridLayout,
+    gridLayout',
     GridChild,
     gridChild,
     GridPosition (..),
@@ -19,8 +20,8 @@ data FlowLayout (options :: [*]) deriving (Typeable)
 data instance Element (FlowLayout options) elems e =
     FlowLayout (Options options e) [SimpleMarkup elems e]
 
-flowLayout :: Options options e -> MarkupBuilder elems children e -> Markup '[FlowLayout options] (Merge elems children) e
-flowLayout options markupBuilder = toMarkup $ FlowLayout options (getSimpleMarkups markupBuilder)
+flowLayout :: Options options e -> [Markup elems children e] -> Markup '[FlowLayout options] (Merge elems children) e
+flowLayout options markups = toMarkup $ FlowLayout options (toSimpleMarkup <$> markups)
 
 data GridLayout
 
@@ -45,8 +46,11 @@ data GridOptions = GridOptions
     gridColumns :: Int
   }
 
-gridLayout :: GridOptions -> MarkupBuilder '[GridChild] children e -> Markup '[GridLayout] children e
-gridLayout options = toMarkup . GridLayout options . getMarkups
+gridLayout :: GridOptions -> [Markup '[GridChild] children e] -> Markup '[GridLayout] children e
+gridLayout options = toMarkup . GridLayout options
+
+gridLayout' :: GridOptions -> MarkupBuilder '[GridChild] children e -> Markup '[GridLayout] children e
+gridLayout' options = gridLayout options . getMarkups
 
 gridChild :: GridPosition -> Markup elems children e -> Markup '[GridChild] (Merge elems children) e
 gridChild position = toMarkup . GridChild position

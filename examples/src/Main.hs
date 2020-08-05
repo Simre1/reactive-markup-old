@@ -18,7 +18,7 @@ main = do
   chosenMarkup <- chooseMarkup
   case chosenMarkup of
     Nothing -> pure ()
-    Just (name, markup) -> basicGtkSetup (T.pack name) (\_ -> pure ()) markup
+    Just (name, markup) -> basicGtkSetup (\_ -> pure ()) markup
   where
     chooseMarkup :: IO (Maybe (String, SimpleMarkup GtkElements Void))
     chooseMarkup = case presetMarkup of

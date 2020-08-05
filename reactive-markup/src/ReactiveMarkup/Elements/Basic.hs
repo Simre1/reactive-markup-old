@@ -3,12 +3,15 @@ module ReactiveMarkup.Elements.Basic
     label,
     List,
     list,
+    list',
     Button,
     button,
     Window,
     window,
     DynamicState,
     dynamicState,
+    DynamicStateIO,
+    dynamicStateIO,
     DynamicMarkup,
     dynamicMarkup,
     Element (..),
@@ -34,8 +37,12 @@ data instance Element (List options) elems e =
 
 -- | Allows to combine multiple elements into one.
 -- You can create an empty `MarkupBuilder` with `emptyMarkupBuilder` and add elements to it with `+->`.
-list :: Options options e -> MarkupBuilder elems1 elems2 e -> Markup '[List options] (Merge elems1 elems2) e
-list options = toMarkup . List options . getSimpleMarkups
+list :: Options options e -> [Markup elems1 elems2 e] -> Markup '[List options] (Merge elems1 elems2) e
+list options = toMarkup . List options . fmap toSimpleMarkup
+
+
+list' :: Options options e -> MarkupBuilder elems1 elems2 e -> Markup '[List options] (Merge elems1 elems2) e
+list' options = toMarkup . List options . getSimpleMarkups
 
 data Button (options :: [*]) deriving (Typeable)
 
@@ -70,6 +77,24 @@ dynamicState ::
   (Dynamic state -> Markup elems1 elems2 innerEvent) ->
   Markup '[DynamicState] (Merge elems1 elems2) outerEvent
 dynamicState initialState handleEvent markup = toMarkup $ DynamicState initialState handleEvent markup
+
+data DynamicStateIO deriving (Typeable)
+
+data instance Element DynamicStateIO elems e
+  = forall state innerEvent.
+    DynamicStateIO state (state -> innerEvent -> IO (Maybe state, Maybe e)) (Dynamic state -> SimpleMarkup elems innerEvent)
+
+-- | Allows local state and event handling within `Markup`.
+dynamicStateIO ::
+  -- | Initial state
+  state ->
+  -- | Handles an event by changing local state and/or emitting another event.
+  (state -> innerEvent -> IO (Maybe state, Maybe outerEvent)) ->
+  -- | Local state can be used to create `Markup`.
+  (Dynamic state -> Markup elems1 elems2 innerEvent) ->
+  Markup '[DynamicStateIO] (Merge elems1 elems2) outerEvent
+dynamicStateIO initialState handleEvent = toMarkup . DynamicStateIO initialState handleEvent . (toSimpleMarkup.)
+
 
 data DynamicMarkup deriving (Typeable)
 

@@ -12,7 +12,7 @@ import ReactiveMarkup.Runners.Gtk
 import ReactiveMarkup.Elements.Options
 
 grid :: Markup '[GridLayout] '[Label '[Text]] e
-grid = gridLayout
+grid = gridLayout'
       (GridOptions 4 4)
       ( emptyMarkupBuilder
           +-> gridChild (GridPosition 1 1 1 1) (label (text "[0,0]"))
