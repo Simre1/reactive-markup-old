@@ -46,10 +46,10 @@ data Key
   | KeySpace
   deriving (Eq, Show)
 
-hotKeyFunction :: (Key -> [Modifier] -> Maybe e) -> Markup elems children e -> Markup '[HotKey] (Merge elems children) e
+hotKeyFunction :: (Key -> [Modifier] -> Maybe e) -> Markup elems children e -> Markup '[HotKey] (elems <+ children) e
 hotKeyFunction f child = toMarkup $ HotKey f $ toSimpleMarkup child
 
-hotKey :: Key -> [Modifier] -> e -> Markup elems children e -> Markup '[HotKey] (Merge elems children) e
+hotKey :: Key -> [Modifier] -> e -> Markup elems children e -> Markup '[HotKey] (elems <+ children) e
 hotKey givenKey givenModifiers event = hotKeyFunction $ \key modifiers ->
   if (givenKey == key) && all (`elem` modifiers) givenModifiers
     then Just event

@@ -44,6 +44,8 @@ type GtkElements =
     DynamicState,
     DynamicStateIO,
     DynamicMarkup,
+    HandleEvent,
+    HandleEventIO,
     FlowLayout '[Orientation],
     GridLayout,
     TextInput ('[Text, TextChange, Activate] |-> Font),
@@ -75,7 +77,8 @@ widgetRunner =
     |-> runDynamicState
     |-> runDynamicStateIO
     |-> runDynamicMarkup
-    -- styling elements
+    |-> runHandleEvent
+    |-> runHandleEventIO
     -- additional layouts
     |-> runFlowLayout
     |-> runGridLayout
@@ -185,6 +188,14 @@ runDynamicMarkup (DynamicMarkup dynamicState generateMarkup) childRunner handleE
   widget <- Gtk.toWidget boxLayout
   Gtk.on widget #destroy (liftES unregisterWidgetUpdate)
   pure widget
+
+runHandleEvent :: RunElement HandleEvent IO (GtkM Gtk.Widget)
+runHandleEvent (HandleEvent innerHandle markup) runner handleEvent = do
+  runMarkup runner (maybe mempty handleEvent . innerHandle) markup
+
+runHandleEventIO :: RunElement HandleEventIO IO (GtkM Gtk.Widget)
+runHandleEventIO (HandleEventIO innerHandle markup) runner handleEvent = do
+  runMarkup runner (\x -> innerHandle x >>= maybe mempty handleEvent) markup
 
 runFlowLayout :: RunElement (FlowLayout '[Orientation]) IO (GtkM Gtk.Widget)
 runFlowLayout (FlowLayout (Options options) children) runner handleEvent = do

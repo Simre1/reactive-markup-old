@@ -12,14 +12,14 @@ import ReactiveMarkup.Markup
 
 textInputExample :: Markup '[List '[]] '[Label '[Text], DynamicState, List '[], TextInput '[TextChange], DynamicMarkup] e
 textInputExample =
- list none
+ list' none
       ( emptyMarkupBuilder
           +-> label (text "Write some Text")
           +-> dynamicState
             ""
             (\_ t -> (Just t, Nothing))
             (\dynText ->
-                list none $
+                list' none $
                   emptyMarkupBuilder
                     +-> textInput (onTextChange id)
                     +-> dynamicMarkup dynText (\t -> label $ text t)

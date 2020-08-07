@@ -14,6 +14,10 @@ module ReactiveMarkup.Elements.Basic
     dynamicStateIO,
     DynamicMarkup,
     dynamicMarkup,
+    HandleEvent,
+    handleEvent,
+    HandleEventIO,
+    handleEventIO,
     Element (..),
   )
 where
@@ -37,11 +41,11 @@ data instance Element (List options) elems e =
 
 -- | Allows to combine multiple elements into one.
 -- You can create an empty `MarkupBuilder` with `emptyMarkupBuilder` and add elements to it with `+->`.
-list :: Options options e -> [Markup elems1 elems2 e] -> Markup '[List options] (Merge elems1 elems2) e
+list :: Options options e -> [Markup elems1 elems2 e] -> Markup '[List options] (elems1 <+ elems2) e
 list options = toMarkup . List options . fmap toSimpleMarkup
 
 
-list' :: Options options e -> MarkupBuilder elems1 elems2 e -> Markup '[List options] (Merge elems1 elems2) e
+list' :: Options options e -> MarkupBuilder elems1 elems2 e -> Markup '[List options] (elems1 <+ elems2) e
 list' options = toMarkup . List options . getSimpleMarkups
 
 data Button (options :: [*]) deriving (Typeable)
@@ -57,15 +61,14 @@ data Window (options :: [*]) deriving (Typeable)
 data instance Element (Window options) elems e = Window (Options options e) (SimpleMarkup elems e)
 
 -- | A window. 
-window :: Options options e -> Markup elems children e -> Markup '[Window options] (Merge elems children) e
+window :: Options options e -> Markup elems children e -> Markup '[Window options] (elems <+ children) e
 window options = toMarkup . Window options . toSimpleMarkup
 
 data DynamicState deriving (Typeable)
 
-data instance Element DynamicState merged e
-  = forall state innerEvent elems children.
-    merged ~ Merge elems children =>
-    DynamicState state (state -> innerEvent -> (Maybe state, Maybe e)) (Dynamic state -> Markup elems children innerEvent)
+data instance Element DynamicState elems e
+  = forall state innerEvent.
+    DynamicState state (state -> innerEvent -> (Maybe state, Maybe e)) (Dynamic state -> SimpleMarkup elems innerEvent)
 
 -- | Allows local state and event handling within `Markup`.
 dynamicState ::
@@ -75,8 +78,8 @@ dynamicState ::
   (state -> innerEvent -> (Maybe state, Maybe outerEvent)) ->
   -- | Local state can be used to create `Markup`.
   (Dynamic state -> Markup elems1 elems2 innerEvent) ->
-  Markup '[DynamicState] (Merge elems1 elems2) outerEvent
-dynamicState initialState handleEvent markup = toMarkup $ DynamicState initialState handleEvent markup
+  Markup '[DynamicState] (elems1 <+ elems2) outerEvent
+dynamicState initialState handleEvent markup = toMarkup $ DynamicState initialState handleEvent (toSimpleMarkup . markup)
 
 data DynamicStateIO deriving (Typeable)
 
@@ -92,17 +95,31 @@ dynamicStateIO ::
   (state -> innerEvent -> IO (Maybe state, Maybe outerEvent)) ->
   -- | Local state can be used to create `Markup`.
   (Dynamic state -> Markup elems1 elems2 innerEvent) ->
-  Markup '[DynamicStateIO] (Merge elems1 elems2) outerEvent
+  Markup '[DynamicStateIO] (elems1 <+ elems2) outerEvent
 dynamicStateIO initialState handleEvent = toMarkup . DynamicStateIO initialState handleEvent . (toSimpleMarkup.)
-
 
 data DynamicMarkup deriving (Typeable)
 
-data instance Element DynamicMarkup merged e
-  = forall state elems children.
-    merged ~ Merge elems children =>
-    DynamicMarkup (Dynamic state) (state -> Markup elems children e)
+data instance Element DynamicMarkup elems e
+  = forall state.
+    DynamicMarkup (Dynamic state) (state -> SimpleMarkup elems e)
 
 -- | Replaces the Markup whenever state changes.
-dynamicMarkup :: Dynamic state -> (state -> Markup elems children e) -> Markup '[DynamicMarkup] (Merge elems children) e
-dynamicMarkup dynamicMarkup markup = toMarkup $ DynamicMarkup dynamicMarkup markup
+dynamicMarkup :: Dynamic state -> (state -> Markup elems children e) -> Markup '[DynamicMarkup] (elems <+ children) e
+dynamicMarkup dynamicMarkup markup = toMarkup $ DynamicMarkup dynamicMarkup (toSimpleMarkup . markup)
+
+data HandleEvent deriving Typeable
+
+data instance Element HandleEvent elems e = forall innerEvent.
+  HandleEvent (innerEvent -> Maybe e) (SimpleMarkup elems innerEvent)
+
+handleEvent :: (innerEvent -> Maybe e) -> Markup elems children innerEvent -> Markup '[HandleEvent] (elems <+ children) e
+handleEvent f = toMarkup . HandleEvent f . toSimpleMarkup
+
+data HandleEventIO deriving Typeable
+
+data instance Element HandleEventIO elems e = forall innerEvent.
+  HandleEventIO (innerEvent -> IO (Maybe e)) (SimpleMarkup elems innerEvent)
+
+handleEventIO :: (innerEvent -> IO (Maybe e)) -> Markup elems children innerEvent -> Markup '[HandleEventIO] (elems <+ children) e
+handleEventIO f = toMarkup . HandleEventIO f . toSimpleMarkup

@@ -20,7 +20,7 @@ data FlowLayout (options :: [*]) deriving (Typeable)
 data instance Element (FlowLayout options) elems e =
     FlowLayout (Options options e) [SimpleMarkup elems e]
 
-flowLayout :: Options options e -> [Markup elems children e] -> Markup '[FlowLayout options] (Merge elems children) e
+flowLayout :: Options options e -> [Markup elems children e] -> Markup '[FlowLayout options] (elems <+ children) e
 flowLayout options markups = toMarkup $ FlowLayout options (toSimpleMarkup <$> markups)
 
 data GridLayout
@@ -29,10 +29,8 @@ data GridChild
 
 data instance Element GridLayout elems e = GridLayout GridOptions [Markup '[GridChild] elems e]
 
-data instance Element GridChild merged e
-  = forall elems children.
-    merged ~ (Merge elems children) =>
-    GridChild GridPosition (Markup elems children e)
+data instance Element GridChild elems e =
+    GridChild GridPosition (SimpleMarkup elems e)
 
 data GridPosition = GridPosition
   { gridChildColumn :: Int,
@@ -52,5 +50,5 @@ gridLayout options = toMarkup . GridLayout options
 gridLayout' :: GridOptions -> MarkupBuilder '[GridChild] children e -> Markup '[GridLayout] children e
 gridLayout' options = gridLayout options . getMarkups
 
-gridChild :: GridPosition -> Markup elems children e -> Markup '[GridChild] (Merge elems children) e
-gridChild position = toMarkup . GridChild position
+gridChild :: GridPosition -> Markup elems children e -> Markup '[GridChild] (elems <+ children) e
+gridChild position = toMarkup . GridChild position . toSimpleMarkup

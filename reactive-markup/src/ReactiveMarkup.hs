@@ -6,6 +6,8 @@ module ReactiveMarkup
     module ReactiveMarkup.Elements.Menu,
     module ReactiveMarkup.Elements.Options,
     module ReactiveMarkup.SimpleEvents,
+    module Data.Colour,
+    module Data.Colour.Names,
   )
 where
 
@@ -16,3 +18,5 @@ import ReactiveMarkup.Elements.Menu
 import ReactiveMarkup.Elements.Options
 import ReactiveMarkup.Markup
 import ReactiveMarkup.SimpleEvents
+import Data.Colour
+import Data.Colour.Names

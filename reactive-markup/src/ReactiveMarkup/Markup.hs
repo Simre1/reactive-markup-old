@@ -35,12 +35,12 @@ module ReactiveMarkup.Markup
     makeOption,
     (%%),
     none,
+    expandOptions,
 
     -- ** Type families
     SubList,
-    Merge,
-    RunnerMerge,
     type (|->),
+    type (<+),
     Void,
     Typeable,
   )
@@ -121,7 +121,7 @@ type RunElement t m result = (forall event. Element t '[Children] event -> Runne
   -- | This function is used to handle 'Element's.
   RunElement t m result ->
   -- | Runner has additional capabilities and can now run 'Element' t.
-  Runner (RunnerMerge elems '[t]) m result
+  Runner (elems |-> '[t]) m result
 (|->) (Runner hashMap) f = Runner (HM.insert (typeRep $ Proxy @(GetId t)) (Function $ unsafeCoerce f) (hashMap))
 
 -- | You can always reduce the capabilities of a 'Runner' as long as the resulting capabilities are within the original.
@@ -130,13 +130,13 @@ reduceRunner :: SubList elems2 elems1 => Runner elems1 m result -> Runner elems2
 reduceRunner runner = unsafeCoerce runner
 
 -- | In case of duplicate elements, the second runner is used. 
-mergeRunners :: Runner elems1 m result -> Runner elems2 m result -> Runner (RunnerMerge elems1 elems2) m result
+mergeRunners :: Runner elems1 m result -> Runner elems2 m result -> Runner (elems1 |-> elems2) m result
 mergeRunners (Runner hm1) (Runner hm2) = Runner $ HM.union hm2 hm1
 
 -- | Runs a 'Markup' with the given 'Runner'. The types of 'Markup' and 'Runner' must match exactly.
 runMarkupExact ::
   forall elems children e m result.
-  Runner (RunnerMerge elems children) m result ->
+  Runner (elems |-> children) m result ->
   -- | Used to handle the event that this 'Markup' might emit.
   (e -> m ()) ->
   Markup elems children e ->
@@ -165,7 +165,7 @@ runMarkupWithTwoExact (Runner hashMap) runner2 handleEvent (Markup elem mapEvent
 -- There may be problems regarding type inference, but it ought to work fine.
 runMarkup ::
   forall exec elems children e m result.
-  SubList (Merge elems children) exec =>
+  SubList (elems <+ children) exec =>
   Runner exec m result ->
   -- | Used to handle the event that this 'Markup' might emit.
   (e -> m ()) ->
@@ -199,7 +199,7 @@ emptyMarkupBuilder :: MarkupBuilder '[] '[] e
 emptyMarkupBuilder = MarkupBuilder []
 
 -- | Adds a 'Markup' to a 'MarkupBuilder' while properly updating its types.
-(+->) :: MarkupBuilder elems children e -> Markup elems2 children2 e -> MarkupBuilder (Merge elems elems2) (Merge children children2) e
+(+->) :: MarkupBuilder elems children e -> Markup elems2 children2 e -> MarkupBuilder (elems <+ elems2) (children <+ children2) e
 (+->) (MarkupBuilder markups) markup = unsafeCoerce $ MarkupBuilder $ markups ++ [unsafeCoerce markup]
 
 infixl 2 +->
@@ -209,7 +209,7 @@ getMarkups :: MarkupBuilder elems children e -> [Markup elems children e]
 getMarkups (MarkupBuilder markups) = markups
 
 -- | Get 'SimpleMarkup's instead of 'Markup's.
-getSimpleMarkups :: MarkupBuilder elems children e -> [SimpleMarkup (Merge elems children) e]
+getSimpleMarkups :: MarkupBuilder elems children e -> [SimpleMarkup (elems <+ children) e]
 getSimpleMarkups = fmap unsafeCoerce . getMarkups
 
 -- TODO: Documentation
@@ -219,7 +219,7 @@ newtype Options (os :: [*]) e = Options [SimpleMarkup os e]
 (%%) ::
   Options os1 e ->
   Options os2 e ->
-  Options (Merge os1 os2) e
+  Options (os1 <+ os2) e
 (%%) (Options options1) (Options options2) = Options (unsafeCoerce options1 ++ unsafeCoerce options2)
 
 none :: Options '[] e
@@ -228,10 +228,13 @@ none = Options []
 makeOption :: Typeable (GetId t) => Element t '[] e -> Options '[t] e
 makeOption elem = Options [toSimpleMarkup $ toMarkup elem]
 
+expandOptions :: SubList elems expanded => Options elems e -> Options expanded e
+expandOptions = unsafeCoerce
+
 -- TODO: Better Type errors!!!
 
 -- | Calculates if a type-level list is a sub list of another one.
-type SubList (sub :: [*]) (full :: [*]) = full ~ Merge full sub
+type SubList (sub :: [*]) (full :: [*]) = full ~ (full <+ sub)
 
 -- | Used for merging the capabilities of 'Runner's. It is different to 'Merge' such that elements
 -- where only a type-level argument differs do not get merged. Instead, only the last of such elements will
@@ -263,6 +266,8 @@ type family Merge (as :: [*]) (bs :: [*]) where
   Merge xs '[] = xs
   Merge '[] ys = ys
   Merge (x : xs) ys = Collect x ys : (Merge xs (CollectRemove x ys))
+
+type a <+ b = Merge a b
 
 type family MergeElements a b :: * where
   MergeElements a a = a
