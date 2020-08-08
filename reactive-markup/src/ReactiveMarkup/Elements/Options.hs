@@ -9,6 +9,8 @@ import Data.Typeable
 import ReactiveMarkup.Markup
 import Unsafe.Coerce (unsafeCoerce)
 
+data SizeUnit = Pixel Int | Percent Int
+
 data Text deriving Typeable
 
 data instance Element Text elems e = Text T.Text
@@ -18,16 +20,16 @@ text = makeOption . Text
 
 data FontSize deriving (Typeable)
 
-data instance Element FontSize elems e = FontPixel Int | FontPercent Int
+data instance Element FontSize elems e = FontSize SizeUnit
 
 smallerFont :: Options '[FontSize] e
-smallerFont = makeOption $ FontPercent 70
+smallerFont = makeOption $ FontSize $ Percent 70
 
 greaterFont :: Options '[FontSize] e
-greaterFont = makeOption $ FontPercent 130
+greaterFont = makeOption $ FontSize $ Percent 130
 
 fontSizePx :: Int -> Options '[FontSize] e
-fontSizePx = makeOption . FontPixel
+fontSizePx = makeOption . FontSize . Pixel
 
 data Orientation deriving (Typeable)
 
@@ -38,7 +40,6 @@ horizontal = makeOption Horizontal
 
 vertical :: Options '[Orientation] e
 vertical = makeOption Vertical
-
 
 data FontStyle deriving (Typeable)
 
@@ -66,6 +67,58 @@ data instance Element FontColour elems e = FontColour (Colour Double) deriving (
 
 fontColour :: Colour Double -> Options '[FontColour] e
 fontColour = makeOption . FontColour
+
+data BackgroundColour deriving Typeable
+
+data instance Element BackgroundColour elems e = BackgroundColour (Colour Double)
+
+backgroundColour :: Colour Double -> Options '[BackgroundColour] e
+backgroundColour = makeOption . BackgroundColour
+
+data MinWidth deriving Typeable
+
+data instance Element MinWidth elems e = MinWidth SizeUnit
+
+minWidthPx :: Int -> Options '[MinWidth] e
+minWidthPx = makeOption . MinWidth . Pixel
+
+data MinHeight deriving Typeable
+
+data instance Element MinHeight elems e = MinHeight SizeUnit
+
+minHeightPx :: Int -> Options '[MinHeight] e
+minHeightPx = makeOption . MinHeight . Pixel
+
+data HomogenousRows deriving Typeable
+
+data instance Element HomogenousRows elems e = HomogenousRows
+
+homogenousRows :: Options '[HomogenousRows] e
+homogenousRows = makeOption HomogenousRows
+
+data HomogenousColumns deriving Typeable
+
+data instance Element HomogenousColumns elems e = HomogenousColumns
+
+homogenousColumns :: Options '[HomogenousColumns] e
+homogenousColumns = makeOption HomogenousColumns
+
+data HorizontalExpand deriving Typeable
+
+data instance Element HorizontalExpand elems e = HorizontalExpand Bool
+
+horizontalExpand :: Bool -> Options '[HorizontalExpand] e
+horizontalExpand = makeOption . HorizontalExpand
+
+data VerticalExpand deriving Typeable
+
+data instance Element VerticalExpand elems e = VerticalExpand Bool
+
+verticalExpand :: Bool -> Options '[VerticalExpand] e
+verticalExpand = makeOption . VerticalExpand
+
+expand :: Bool -> Options '[HorizontalExpand, VerticalExpand] e
+expand b = horizontalExpand b %% verticalExpand b
 
 -- Events
 

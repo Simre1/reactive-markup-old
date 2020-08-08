@@ -11,9 +11,8 @@ import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 import ReactiveMarkup.Elements.Options
 
-grid :: Markup '[GridLayout] '[Label '[Text]] e
-grid = gridLayout'
-      (GridOptions 4 4)
+grid :: Markup '[GridLayout '[]] '[Label '[Text]] e
+grid = gridLayout' none
       ( emptyMarkupBuilder
           +-> gridChild (GridPosition 1 1 1 1) (label (text "[0,0]"))
           +-> gridChild (GridPosition 1 3 3 1) (label (text "[0,2] -> [2,2]"))

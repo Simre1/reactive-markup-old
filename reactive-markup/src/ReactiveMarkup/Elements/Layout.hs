@@ -2,7 +2,6 @@ module ReactiveMarkup.Elements.Layout
   ( FlowLayout,
     flowLayout,
     GridLayout,
-    GridOptions (..),
     gridLayout,
     gridLayout',
     GridChild,
@@ -23,11 +22,11 @@ data instance Element (FlowLayout options) elems e =
 flowLayout :: Options options e -> [Markup elems children e] -> Markup '[FlowLayout options] (elems <+ children) e
 flowLayout options markups = toMarkup $ FlowLayout options (toSimpleMarkup <$> markups)
 
-data GridLayout
+data GridLayout (options :: [*]) deriving Typeable
 
-data GridChild
+data GridChild deriving Typeable
 
-data instance Element GridLayout elems e = GridLayout GridOptions [Markup '[GridChild] elems e]
+data instance Element (GridLayout options) elems e = GridLayout (Options options e) [Markup '[GridChild] elems e]
 
 data instance Element GridChild elems e =
     GridChild GridPosition (SimpleMarkup elems e)
@@ -39,15 +38,10 @@ data GridPosition = GridPosition
     gridChildHeight :: Int
   }
 
-data GridOptions = GridOptions
-  { gridRows :: Int,
-    gridColumns :: Int
-  }
-
-gridLayout :: GridOptions -> [Markup '[GridChild] children e] -> Markup '[GridLayout] children e
+gridLayout :: Options options e -> [Markup '[GridChild] children e] -> Markup '[GridLayout options] children e
 gridLayout options = toMarkup . GridLayout options
 
-gridLayout' :: GridOptions -> MarkupBuilder '[GridChild] children e -> Markup '[GridLayout] children e
+gridLayout' :: Options options e -> MarkupBuilder '[GridChild] children e -> Markup '[GridLayout options] children e
 gridLayout' options = gridLayout options . getMarkups
 
 gridChild :: GridPosition -> Markup elems children e -> Markup '[GridChild] (elems <+ children) e

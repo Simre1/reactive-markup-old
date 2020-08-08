@@ -4,6 +4,8 @@ module ReactiveMarkup.Elements.Basic
     List,
     list,
     list',
+    Box,
+    box,
     Button,
     button,
     Window,
@@ -47,6 +49,13 @@ list options = toMarkup . List options . fmap toSimpleMarkup
 
 list' :: Options options e -> MarkupBuilder elems1 elems2 e -> Markup '[List options] (elems1 <+ elems2) e
 list' options = toMarkup . List options . getSimpleMarkups
+
+data Box (options :: [*]) deriving Typeable
+
+data instance Element (Box options) elems e = Box (Options options e) (SimpleMarkup elems e)
+
+box :: Options options e -> Markup elems children e -> Markup '[Box options] (elems <+ children) e
+box options = toMarkup . Box options . toSimpleMarkup
 
 data Button (options :: [*]) deriving (Typeable)
 

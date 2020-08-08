@@ -29,6 +29,7 @@ module ReactiveMarkup.SimpleEvents
     filterE,
     filterApply,
     ioFilterE,
+    onlyTriggerOnChange,
 
     -- ** Switching
 
@@ -113,6 +114,9 @@ filterApply = ioFilterE . current
 
 ioFilterE :: IO (a -> Bool) -> Event a -> Event a
 ioFilterE check (Event reg) = Event $ reg . filteringEventHandler check
+
+onlyTriggerOnChange :: Eq a => Dynamic a -> Dynamic a
+onlyTriggerOnChange (Dynamic b e) = Dynamic b $ filterApply ((==) <$> b) e
 
 link :: MonadES m => Event a -> EventTrigger a -> m (EventSetup ())
 link ev tr = reactimate ev (simpleEventHandler $ triggerEvent tr)
