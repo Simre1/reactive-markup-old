@@ -15,9 +15,11 @@ module ReactiveMarkup.Markup
     Runner,
     emptyRunner,
     (|->),
-    RunElement,
+    fullRun,
+    simpleRun,
+    eventRun,
+    childrenRun,
     reduceRunner,
-    mergeRunners,
     runMarkup,
     runMarkupWithTwo,
     runMarkupExact,
@@ -31,7 +33,7 @@ module ReactiveMarkup.Markup
     getSimpleMarkups,
 
     -- ** Options
-    Options(..),
+    Options (..),
     makeOption,
     (%%),
     none,
@@ -48,10 +50,10 @@ where
 
 import qualified Data.HashMap.Strict as HM
 import Data.Typeable (Proxy (..), TypeRep, Typeable, typeRep)
+import Data.Void (Void)
 import GHC.Exts (Constraint)
 import qualified GHC.TypeLits as GHC
 import Unsafe.Coerce (unsafeCoerce)
-import Data.Void (Void)
 
 -- | Data family for all elements. By adding instances, you can create more elements easily.
 --
@@ -110,28 +112,49 @@ data Children
 emptyRunner :: Runner '[] m result
 emptyRunner = Runner HM.empty
 
--- | Can be added to a 'Runner' with '|->' so that the runner can handle t.
-type RunElement t m result = (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m ()) -> result)
-
--- | Allows a 'Runner' to handle one more element.
+-- | Merge two 'Runner's.
 (|->) ::
-  forall t m result elems.
-  (Typeable (GetId t)) =>
-  Runner elems m result ->
+  forall m result elems1 elems2.
+  Runner elems1 m result ->
   -- | This function is used to handle 'Element's.
-  RunElement t m result ->
+  Runner elems2 m result ->
   -- | Runner has additional capabilities and can now run 'Element' t.
-  Runner (elems |-> '[t]) m result
-(|->) (Runner hashMap) f = Runner (HM.insert (typeRep $ Proxy @(GetId t)) (Function $ unsafeCoerce f) (hashMap))
+  Runner (elems1 |-> elems2) m result
+(|->) (Runner hashMap1) (Runner hashMap2) = Runner $ HM.union hashMap2 hashMap1
+
+-- | Create a new runner to handle the specified element with all parameters available.
+fullRun ::
+  forall t m result.
+  Typeable (GetId t) =>
+  (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m ()) -> result) ->
+  Runner '[t] m result
+fullRun f = Runner (HM.insert (typeRep $ Proxy @(GetId t)) (Function $ unsafeCoerce f) HM.empty)
+
+-- | Simplified version of 'fullRun', where only the element is available.
+simpleRun ::
+  Typeable (GetId t) =>
+  (forall event. Element t '[Children] event -> result) ->
+  Runner '[t] m result
+simpleRun f = fullRun (\e _ _ -> f e)
+
+-- | Simplified version of 'fullRun', where only the element and the event handler is available.
+eventRun ::
+  Typeable (GetId t) =>
+  (forall event. Element t '[Children] event -> (event -> m ()) -> result) ->
+  Runner '[t] m result
+eventRun f = fullRun (\e _ h -> f e h)
+
+-- | Simplified version of 'fullRun', where only the element and the children runner is available.
+childrenRun ::
+  Typeable (GetId t) =>
+  (forall event. Element t '[Children] event -> Runner '[Children] m result -> result) ->
+  Runner '[t] m result
+childrenRun f = fullRun (\e r _ -> f e r)
 
 -- | You can always reduce the capabilities of a 'Runner' as long as the resulting capabilities are within the original.
 -- Should be used carefully since it breaks type inference.
 reduceRunner :: SubList elems2 elems1 => Runner elems1 m result -> Runner elems2 m result
 reduceRunner runner = unsafeCoerce runner
-
--- | In case of duplicate elements, the second runner is used. 
-mergeRunners :: Runner elems1 m result -> Runner elems2 m result -> Runner (elems1 |-> elems2) m result
-mergeRunners (Runner hm1) (Runner hm2) = Runner $ HM.union hm2 hm1
 
 -- | Runs a 'Markup' with the given 'Runner'. The types of 'Markup' and 'Runner' must match exactly.
 runMarkupExact ::
