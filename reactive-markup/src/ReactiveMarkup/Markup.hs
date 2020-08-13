@@ -20,6 +20,8 @@ module ReactiveMarkup.Markup
     eventRun,
     childrenRun,
     reduceRunner,
+    mapRunnerResult,
+    mapRunnerEvent,
     runMarkup,
     runMarkupWithTwo,
     runMarkupExact,
@@ -104,7 +106,7 @@ data Runner (elems :: [*]) m result where
   Runner :: HM.HashMap TypeRep (Function m result) -> Runner elems m result
 
 data Function m result where
-  Function :: (Element t children e -> Runner children m result -> (e -> m ()) -> result) -> Function m result
+  Function :: (Element t children e -> Runner children m result -> (e -> m) -> result) -> Function m result
 
 data Children
 
@@ -126,7 +128,7 @@ emptyRunner = Runner HM.empty
 fullRun ::
   forall t m result.
   Typeable (GetId t) =>
-  (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m ()) -> result) ->
+  (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m) -> result) ->
   Runner '[t] m result
 fullRun f = Runner (HM.insert (typeRep $ Proxy @(GetId t)) (Function $ unsafeCoerce f) HM.empty)
 
@@ -140,7 +142,7 @@ simpleRun f = fullRun (\e _ _ -> f e)
 -- | Simplified version of 'fullRun', where only the element and the event handler is available.
 eventRun ::
   Typeable (GetId t) =>
-  (forall event. Element t '[Children] event -> (event -> m ()) -> result) ->
+  (forall event. Element t '[Children] event -> (event -> m) -> result) ->
   Runner '[t] m result
 eventRun f = fullRun (\e _ h -> f e h)
 
@@ -156,12 +158,29 @@ childrenRun f = fullRun (\e r _ -> f e r)
 reduceRunner :: SubList elems2 elems1 => Runner elems1 m result -> Runner elems2 m result
 reduceRunner runner = unsafeCoerce runner
 
+-- | Given a bidirectional mapping, 'mapRunnerResult' allows to change the result of a ''Runner. 
+mapRunnerResult :: forall result result2 elems m. (result -> result2) -> (result2 -> result) -> Runner elems m result -> Runner elems m result2
+mapRunnerResult f1 f2 (Runner hashMap) = Runner $ HM.map mapFunction hashMap
+  where 
+    mapFunction :: Function m result -> Function m result2
+    mapFunction (Function f) = Function $ \elem childRunner handle -> f1 $ f elem (editRunner childRunner) handle
+      where 
+        editRunner :: Runner children m result2 -> Runner children m result
+        editRunner runner = mapRunnerResult f2 f1 runner
+
+-- | Given a bidirectional mapping, 'mapRunnerEvent' allows to change the event handling function of a ''Runner. 
+mapRunnerEvent :: forall result m1 m2 elems. (m1 -> m2) -> (m2 -> m1) -> Runner elems m1 result -> Runner elems m2 result
+mapRunnerEvent f1 f2 (Runner hashMap) = Runner $ HM.map mapFunction hashMap
+  where 
+    mapFunction :: Function m1 result -> Function m2 result
+    mapFunction (Function f) = Function $ \elem childRunner handle -> f elem (mapRunnerEvent f2 f1 childRunner) (f2 . handle)
+
 -- | Runs a 'Markup' with the given 'Runner'. The types of 'Markup' and 'Runner' must match exactly.
 runMarkupExact ::
   forall elems children e m result.
   Runner (elems |-> children) m result ->
   -- | Used to handle the event that this 'Markup' might emit.
-  (e -> m ()) ->
+  (e -> m) ->
   Markup elems children e ->
   result
 runMarkupExact runner markup = runMarkupWithTwoExact (unsafeCoerce runner) (unsafeCoerce runner) markup
@@ -172,7 +191,7 @@ runMarkupWithTwoExact ::
   Runner elems m result ->
   Runner children m result ->
   -- | Used to handle the event that this 'Markup' might emit.
-  (e -> m ()) ->
+  (e -> m) ->
   Markup elems children e ->
   result
 runMarkupWithTwoExact (Runner hashMap) runner2 handleEvent (Markup elem mapEvent) = runMarkupExact' (elem) mapEvent
@@ -191,7 +210,7 @@ runMarkup ::
   SubList (elems <+ children) exec =>
   Runner exec m result ->
   -- | Used to handle the event that this 'Markup' might emit.
-  (e -> m ()) ->
+  (e -> m) ->
   Markup elems children e ->
   result
 runMarkup runner = runMarkupExact (unsafeCoerce runner)
@@ -206,7 +225,7 @@ runMarkupWithTwo ::
   Runner exec1 m result ->
   Runner exec2 m result ->
   -- | Used to handle the event that this 'Markup' might emit.
-  (e -> m ()) ->
+  (e -> m) ->
   Markup elems children e ->
   result
 runMarkupWithTwo runner1 runner2 = runMarkupWithTwoExact (reduceRunner runner1) (reduceRunner runner2)

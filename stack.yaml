@@ -6,3 +6,9 @@ packages:
 - ./examples
 - ./gtk-hotreload
 
+extra-deps:
+- cairo-0.13.8.1
+- diagrams-cairo-1.4.1.1
+- gtk2hs-buildtools-0.13.8.0
+- pango-0.13.8.1
+- glib-0.13.8.1
