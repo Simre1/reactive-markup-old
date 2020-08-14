@@ -13,7 +13,7 @@ import ReactiveMarkup.Runners.Gtk
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 
-gtkWidget :: MVar (Gtk.Window ->IO Gtk.Widget)
+gtkWidget :: MVar (GtkM Gtk.Widget)
 gtkWidget = unsafePerformIO $ newEmptyMVar
 
 shouldQuit :: IORef Bool
@@ -45,6 +45,7 @@ setupHotReloading = do
       Gtk.init Nothing
       win <- Gtk.new Gtk.Window [#title Gtk.:= "HotReload"]
       Gtk.on win #destroy Gtk.mainQuit
+      gtkState <- defaultGtkState win
       #showAll win
       let loop = do
             shouldQuit <- readIORef shouldQuit
@@ -55,10 +56,10 @@ setupHotReloading = do
                 case maybeNewWidget of
                   Nothing -> pure True
                   Just _ -> do
-                    makeWidget <- takeMVar gtkWidget
+                    widget <- takeMVar gtkWidget
                     widgets <- Gtk.containerGetChildren win
                     forM_ widgets $ \w -> Gtk.containerRemove win w
-                    widget <- makeWidget win
+                    widget <- runGtkM gtkState widget
                     Gtk.containerAdd win widget
                     #showAll widget
                     pure True
@@ -67,8 +68,8 @@ setupHotReloading = do
       GLib.sourceRemove timer
       cleanUp
 
-hotReloadMarkup :: (SubList children GtkElements, GtkRootMarkup elems) => (e -> IO ()) -> Markup elems children e -> IO ()
-hotReloadMarkup handleEvent markup = do
+hotReloadMarkup :: GtkM Gtk.Widget -> IO ()
+hotReloadMarkup widget = do
   maybeThread <- readIORef gtkThread
   case maybeThread of
     Nothing -> do
@@ -80,21 +81,21 @@ hotReloadMarkup handleEvent markup = do
                 putStrLn "Setting up GTK. Please wait for a moment."
                 setupHotReloading
                 threadDelay 2000000
-                hotReloadMarkup handleEvent markup
+                hotReloadMarkup widget
               "n" -> putStrLn "Hot-Reloading is not possible without setting up GTK. Therefore, there is nothing to do."
               _ -> putStrLn "You need to either input the character y or n and no other characters." *> handleUserInput
       handleUserInput
     Just _ -> do
-      putMVar gtkWidget $ \window -> toWidget window handleEvent markup
+      putMVar gtkWidget $ widget
 
-hotReloadMarkupWithoutAsking :: (SubList children GtkElements, GtkRootMarkup elems) => (e -> IO ()) -> Markup elems children e -> IO ()
-hotReloadMarkupWithoutAsking handleEvent markup = do
+hotReloadMarkupWithoutAsking :: GtkM Gtk.Widget -> IO ()
+hotReloadMarkupWithoutAsking widget = do
   maybeThread <- readIORef gtkThread
   case maybeThread of
     Nothing -> do
       putStrLn "Setting up GTK. Please wait for a moment."
       setupHotReloading
       threadDelay 2000000
-      hotReloadMarkupWithoutAsking handleEvent markup
+      hotReloadMarkupWithoutAsking widget
     Just _ -> do
-      putMVar gtkWidget $ \window -> toWidget window handleEvent markup
+      putMVar gtkWidget $ widget

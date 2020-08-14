@@ -37,4 +37,4 @@ rainbowColour i = blend factor3 (blend factor2 red yellow) (blend factor2 (blend
   where
     factor1 = sin (0.35 * fromIntegral i)
     factor2 = sin (0.2 * fromIntegral i)
-    factor3 = 0.5 + sin (0.25 * fromIntegral i) / 4
+    factor3 = 0.5 + sin (0.25 * fromIntegral i) / 2
