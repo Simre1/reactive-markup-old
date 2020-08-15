@@ -11,7 +11,8 @@ module ReactiveMarkup.Runners.Gtk
     GtkM,
     runGtkM,
     GtkState(..),
-    defaultGtkState
+    defaultGtkState,
+    BC.Cairo
   )
 where
 
@@ -22,7 +23,7 @@ import Data.Colour
 import Data.Colour.SRGB
 import Data.Functor ((<&>))
 import qualified Data.GI.Base.Attributes as Gtk (AttrOpTag (..))
-import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef, writeIORef)
+import Data.IORef (atomicWriteIORef, IORef, atomicModifyIORef, newIORef, readIORef, writeIORef)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T (encodeUtf8)
 import qualified GI.Gtk as Gtk
@@ -36,7 +37,7 @@ import qualified Graphics.Rendering.Cairo as C
 import qualified Graphics.Rendering.Cairo.Internal as C (runRender, Cairo(..))
 import Control.Monad.Trans.Reader (ReaderT(runReaderT))
 import Foreign.Marshal.Alloc (free)
-import Foreign.Ptr (castPtr)
+import Foreign.Ptr (nullPtr, castPtr)
 
 import ReactiveMarkup
 import Data.Word (Word32)
@@ -302,21 +303,31 @@ runDrawingBoard = eventRun $ \(DrawingBoard (Options options)) handleEvent -> do
   liftIO $ case maybeDiagram of
     Nothing -> pure ()
     Just dynamicDiagram -> do
+      (resizeDynamic, triggerResize) <- newDynamic (0,0)
+      imagePtr <- newIORef (nullPtr)
+      unregister1 <- reactimate (toEvent $ (,) <$> dynamicDiagram <*> resizeDynamic) $ simpleEventHandler $ \(diagram, (w,h)) -> do
+        oldPtr <- readIORef imagePtr
+        BC.renderPtr w h (C.FormatARGB32) diagram >>= atomicWriteIORef imagePtr
+        free oldPtr
+      Gtk.onWidgetSizeAllocate drawingArea $ \rect -> do
+        w <- Gdk.getRectangleWidth rect
+        h <- Gdk.getRectangleHeight rect
+        triggerEvent triggerResize (fromEnum w, fromEnum h)
       Gtk.onWidgetDraw drawingArea $ \context -> do
-        diagram <- current $ toBehavior dynamicDiagram
-        width <- fromIntegral <$> Gtk.widgetGetAllocatedWidth drawingArea
-        height <- fromIntegral <$> Gtk.widgetGetAllocatedHeight drawingArea
-        ptr <- BC.renderPtr width height (C.FormatARGB32) diagram
+        -- ptr <- current $ toBehavior $ dynamicDiagram
+        -- width <- fromIntegral <$> Gtk.widgetGetAllocatedWidth drawingArea
+        -- height <- fromIntegral <$> Gtk.widgetGetAllocatedHeight drawingArea
+        (width, height) <- current $ toBehavior resizeDynamic
+        ptr <- readIORef imagePtr
         C.withImageSurfaceForData (castPtr ptr) C.FormatARGB32 width height (C.formatStrideForWidth C.FormatARGB32 width) $ \surface -> do
           runRenderWithContext context $ do
             C.setSourceSurface surface 0 0
             C.newPath
             C.rectangle 0 0 (fromIntegral width) (fromIntegral height)
             C.paint
-        free ptr
         pure True
-      unregister <- reactimate (toEvent dynamicDiagram) $ simpleEventHandler $ \_ -> Gtk.widgetQueueDraw drawingArea
-      Gtk.on drawingArea #destroy (liftES unregister)
+      unregister2 <- reactimate (toEvent dynamicDiagram) $ simpleEventHandler $ \_ -> Gtk.widgetQueueDraw drawingArea
+      Gtk.on drawingArea #destroy (liftES $ unregister1 *> unregister2)
       pure ()
   case maybeAspectRatio of
     Nothing -> Gtk.toWidget drawingArea
@@ -352,7 +363,7 @@ runDrawingBoard = eventRun $ \(DrawingBoard (Options options)) handleEvent -> do
 
 type GtkOption o = GtkM (T.Text, [Gtk.AttrOp o Gtk.AttrSet], o -> GtkM ())
 
-type AllowedOp o s r = GI.AttrSetC (GI.ResolveAttribute s o) o s r
+type AllowedAttr o s r = GI.AttrSetC (GI.ResolveAttribute s o) o s r
 
 type AllowedSignal o s info = (GLib.SignalInfo info, Gtk.GObject o, info ~ GI.ResolveSignal s o, GLib.HaskellCallbackType info ~ IO ())
 
@@ -371,13 +382,13 @@ applyOptions widget (Options options) handleEvent optionRunner = do
 runBasicStyling :: Runner '[FontSize, FontWeight, FontStyle, FontColour, BackgroundColour] (IO ()) (GtkOption o)
 runBasicStyling = runFontSize |-> runFontWeight |-> runFontStyle |-> runFontColour |-> runBackgroundColour
 
-runTextLabel :: AllowedOp o "label" T.Text => Runner ('[Text]) (IO ()) (GtkOption o)
+runTextLabel :: AllowedAttr o "label" T.Text => Runner ('[Text]) (IO ()) (GtkOption o)
 runTextLabel = simpleRun $ \(Text t) -> pure ("", [#label Gtk.:= t], const (pure ()))
 
-runTextText :: AllowedOp o "text" T.Text => Runner ('[Text]) (IO ()) (GtkOption o)
+runTextText :: AllowedAttr o "text" T.Text => Runner ('[Text]) (IO ()) (GtkOption o)
 runTextText = simpleRun $ \(Text t) -> pure ("", [#text Gtk.:= t], const (pure ()))
 
-runOrientation :: AllowedOp o "orientation" Gtk.Orientation => Runner ('[Orientation]) (IO ()) (GtkOption o)
+runOrientation :: AllowedAttr o "orientation" Gtk.Orientation => Runner ('[Orientation]) (IO ()) (GtkOption o)
 runOrientation = simpleRun $ \orientation -> case orientation of
   Horizontal -> pure ("", [#orientation Gtk.:= Gtk.OrientationHorizontal], const (pure ()))
   Vertical -> pure ("", [#orientation Gtk.:= Gtk.OrientationVertical], const (pure ()))
@@ -406,13 +417,13 @@ runFontColour = simpleRun $ \(FontColour colour) -> pure ("color:" <> T.pack (sR
 runBackgroundColour :: Runner ('[BackgroundColour]) (IO ()) (GtkOption o)
 runBackgroundColour = simpleRun $ \(BackgroundColour colour) -> pure ("background-color:" <> T.pack (sRGB24show colour) <> ";", [], const (pure ()))
 
-runHorizontalExpand :: AllowedOp o "hexpand" Bool => Runner ('[HorizontalExpand]) (IO ()) (GtkOption o)
+runHorizontalExpand :: AllowedAttr o "hexpand" Bool => Runner ('[HorizontalExpand]) (IO ()) (GtkOption o)
 runHorizontalExpand = simpleRun $ (\(HorizontalExpand b) -> pure ("", [#hexpand Gtk.:= b], const (pure ())))
 
-runVerticalExpand :: AllowedOp o "vexpand" Bool => Runner ('[VerticalExpand]) (IO ()) (GtkOption o)
+runVerticalExpand :: AllowedAttr o "vexpand" Bool => Runner ('[VerticalExpand]) (IO ()) (GtkOption o)
 runVerticalExpand = simpleRun $ (\(VerticalExpand b) -> pure ("", [#vexpand Gtk.:= b], const (pure ())))
 
-runExpandable :: (AllowedOp o "vexpand" Bool, AllowedOp o "hexpand" Bool) => Runner ('[HorizontalExpand, VerticalExpand]) (IO ()) (GtkOption o)
+runExpandable :: (AllowedAttr o "vexpand" Bool, AllowedAttr o "hexpand" Bool) => Runner ('[HorizontalExpand, VerticalExpand]) (IO ()) (GtkOption o)
 runExpandable = runHorizontalExpand |-> runVerticalExpand
 
 runActivate :: AllowedSignal o "activate" info => Runner ('[Activate]) (IO ()) (GtkOption o)
@@ -421,10 +432,10 @@ runActivate = eventRun (\(Activate e) handleEvent -> pure ("", [], \o -> Gtk.on 
 runClick :: AllowedSignal o "clicked" info => Runner ('[Click]) (IO ()) (GtkOption o)
 runClick = eventRun $ \(Click e) handleEvent -> pure ("", [], \o -> Gtk.on o #clicked (handleEvent e) *> pure ())
 
-runHomogenousRows :: AllowedOp o "rowHomogeneous" Bool => Runner ('[HomogenousRows]) (IO ()) (GtkOption o)
+runHomogenousRows :: AllowedAttr o "rowHomogeneous" Bool => Runner ('[HomogenousRows]) (IO ()) (GtkOption o)
 runHomogenousRows = simpleRun $ \HomogenousRows -> pure ("", [#rowHomogeneous Gtk.:= True], const (pure ()))
 
-runHomogenousColumns :: AllowedOp o "columnHomogeneous" Bool => Runner ('[HomogenousColumns]) (IO ()) (GtkOption o)
+runHomogenousColumns :: AllowedAttr o "columnHomogeneous" Bool => Runner ('[HomogenousColumns]) (IO ()) (GtkOption o)
 runHomogenousColumns = simpleRun $ \HomogenousColumns -> pure ("", [#columnHomogeneous Gtk.:= True], const (pure ()))
 
 runTextChange :: (Gtk.IsEntry o, AllowedSignal o "changed" info) => Runner ('[TextChange]) (IO ()) (GtkOption o)
