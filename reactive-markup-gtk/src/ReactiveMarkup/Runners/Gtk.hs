@@ -60,7 +60,8 @@ type GtkElements =
     GridLayout [HomogenousRows, HomogenousColumns],
     TextInput ('[Text, TextChange, Activate] |-> BasicStyling),
     HotKey,
-    DrawingBoard '[DrawDiagram BC.Cairo, DrawDynamicDiagram BC.Cairo, MouseClickWithPosition, AspectRatio]
+    DrawingBoard '[DrawDiagram BC.Cairo, DrawDynamicDiagram BC.Cairo, MouseClickWithPosition, AspectRatio],
+    Notebook
   ]
 
 type Expandable = '[HorizontalExpand, VerticalExpand]
@@ -97,6 +98,7 @@ widgetRunner =
     |-> runTextInput
     |-> runHotKey
     |-> runDrawingBoard
+    |-> runNotebook
 
 runLabel :: Runner '[Label ('[Text] |-> BasicStyling)] (IO ()) (GtkM Gtk.Widget)
 runLabel = eventRun $ \(Label options) handleEvent -> do
@@ -293,7 +295,7 @@ runHotKey = fullRun $ \(HotKey f child) runner handleEvent -> do
 
 runDrawingBoard :: Runner '[DrawingBoard '[DrawDiagram BC.Cairo, DrawDynamicDiagram BC.Cairo, MouseClickWithPosition, AspectRatio]] (IO ()) (GtkM Gtk.Widget)
 runDrawingBoard = eventRun $ \(DrawingBoard (Options options)) handleEvent -> do
-  drawingArea <- Gtk.new Gtk.DrawingArea []
+  drawingArea <- Gtk.new Gtk.DrawingArea [#expand Gtk.:= True]
   Gtk.widgetAddEvents drawingArea [Gdk.EventMaskAllEventsMask]
   diagramRef <- liftIO $ newIORef Nothing
   aspectRatio <- liftIO $ newIORef Nothing
@@ -332,7 +334,7 @@ runDrawingBoard = eventRun $ \(DrawingBoard (Options options)) handleEvent -> do
   case maybeAspectRatio of
     Nothing -> Gtk.toWidget drawingArea
     (Just r) -> do
-      frame <- Gtk.new Gtk.AspectFrame []
+      frame <- Gtk.new Gtk.AspectFrame [#expand Gtk.:= True]
       Gtk.aspectFrameSet frame 0.5 0.5 (realToFrac r) False
       #add frame drawingArea
       Gtk.toWidget frame
@@ -360,6 +362,14 @@ runDrawingBoard = eventRun $ \(DrawingBoard (Options options)) handleEvent -> do
     runRenderWithContext ct r = GIC.withManagedPtr ct $ \p ->
       runReaderT (C.runRender r) (C.Cairo (castPtr p))
 
+runNotebook :: Runner '[Notebook] (IO ()) (GtkM Gtk.Widget)
+runNotebook = fullRun $ \(Notebook pages) runner handleEvent -> do
+  notebook <- Gtk.new Gtk.Notebook []
+  forM_ pages $ \(label, content) -> do
+    gtkLabel <- runMarkup runner handleEvent label
+    gtkContent <- runMarkup runner handleEvent content
+    Gtk.notebookAppendPage notebook gtkContent (Just gtkLabel)
+  Gtk.toWidget notebook
 
 type GtkOption o = GtkM (T.Text, [Gtk.AttrOp o Gtk.AttrSet], o -> GtkM ())
 

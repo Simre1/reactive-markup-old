@@ -118,7 +118,7 @@ verticalExpand :: Bool -> Options '[VerticalExpand] e
 verticalExpand = makeOption . VerticalExpand
 
 expand :: Bool -> Options '[HorizontalExpand, VerticalExpand] e
-expand b = horizontalExpand b %% verticalExpand b
+expand b = horizontalExpand b // verticalExpand b
 
 -- Events
 

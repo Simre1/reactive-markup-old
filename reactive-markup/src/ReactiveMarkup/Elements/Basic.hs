@@ -3,7 +3,6 @@ module ReactiveMarkup.Elements.Basic
     label,
     List,
     list,
-    list',
     Box,
     box,
     Button,
@@ -42,13 +41,8 @@ data instance Element (List options) elems e =
     List (Options options e) [SimpleMarkup elems e]
 
 -- | Allows to combine multiple elements into one.
--- You can create an empty `MarkupBuilder` with `emptyMarkupBuilder` and add elements to it with `+->`.
 list :: Options options e -> [Markup elems1 elems2 e] -> Markup '[List options] (elems1 <+ elems2) e
 list options = toMarkup . List options . fmap toSimpleMarkup
-
-
-list' :: Options options e -> MarkupBuilder elems1 elems2 e -> Markup '[List options] (elems1 <+ elems2) e
-list' options = toMarkup . List options . getSimpleMarkups
 
 data Box (options :: [*]) deriving Typeable
 

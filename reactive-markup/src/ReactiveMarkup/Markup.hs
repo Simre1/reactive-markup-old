@@ -10,7 +10,6 @@ module ReactiveMarkup.Markup
     toMarkup,
     toSimpleMarkup,
     expandMarkup,
-
     -- ** Runner
     Runner,
     emptyRunner,
@@ -26,19 +25,15 @@ module ReactiveMarkup.Markup
     runMarkupWithTwo,
     runMarkupExact,
     runMarkupWithTwoExact,
-
-    -- ** MarkupBuilder
-    MarkupBuilder,
-    emptyMarkupBuilder,
-    (+->),
-    getMarkups,
-    getSimpleMarkups,
-
+    -- ** Make lists of markups
+    (+:),
+    (+++),
+    noElems,
     -- ** Options
     Options (..),
     makeOption,
-    (%%),
-    none,
+    (//),
+    noOps,
     expandOptions,
 
     -- ** Type families
@@ -87,7 +82,7 @@ toMarkup :: (Typeable (GetId t)) => Element t children e -> Markup '[t] children
 toMarkup element = Markup element id
 
 -- | Transforms a 'Markup' to 'SimpleMarkup'.
-toSimpleMarkup :: Markup elems children e -> SimpleMarkup (Merge elems children) e
+toSimpleMarkup :: Markup elems children e -> SimpleMarkup (elems <+ children) e
 toSimpleMarkup = unsafeCoerce
 
 -- | You can always expand a 'Markup' so that it needs more capabilities as long as the original ones are covered.
@@ -108,8 +103,6 @@ data Runner (elems :: [*]) m result where
 data Function m result where
   Function :: (Element t children e -> Runner children m result -> (e -> m) -> result) -> Function m result
 
-data Children
-
 -- | An empty Runner that cannot run anything.
 emptyRunner :: Runner '[] m result
 emptyRunner = Runner HM.empty
@@ -128,28 +121,28 @@ emptyRunner = Runner HM.empty
 fullRun ::
   forall t m result.
   Typeable (GetId t) =>
-  (forall event. Element t '[Children] event -> Runner '[Children] m result -> (event -> m) -> result) ->
+  (forall event children. Element t children event -> Runner children m result -> (event -> m) -> result) ->
   Runner '[t] m result
 fullRun f = Runner (HM.insert (typeRep $ Proxy @(GetId t)) (Function $ unsafeCoerce f) HM.empty)
 
 -- | Simplified version of 'fullRun', where only the element is available.
 simpleRun ::
   Typeable (GetId t) =>
-  (forall event. Element t '[Children] event -> result) ->
+  (forall children event. Element t children event -> result) ->
   Runner '[t] m result
 simpleRun f = fullRun (\e _ _ -> f e)
 
 -- | Simplified version of 'fullRun', where only the element and the event handler is available.
 eventRun ::
   Typeable (GetId t) =>
-  (forall event. Element t '[Children] event -> (event -> m) -> result) ->
+  (forall children event. Element t children event -> (event -> m) -> result) ->
   Runner '[t] m result
 eventRun f = fullRun (\e _ h -> f e h)
 
 -- | Simplified version of 'fullRun', where only the element and the children runner is available.
 childrenRun ::
   Typeable (GetId t) =>
-  (forall event. Element t '[Children] event -> Runner '[Children] m result -> result) ->
+  (forall event children. Element t children event -> Runner children m result -> result) ->
   Runner '[t] m result
 childrenRun f = fullRun (\e r _ -> f e r)
 
@@ -215,7 +208,7 @@ runMarkup ::
   result
 runMarkup runner = runMarkupExact (unsafeCoerce runner)
 
--- The preferred way to run a 'Markup' with two 'Runner's. The first 'Runner' is used for the directly wrapped
+-- | The preferred way to run a 'Markup' with two 'Runner's. The first 'Runner' is used for the directly wrapped
 -- 'Element's and the second for their children.
 -- Is is a less restrictive version of 'runMarkupWithTwoExact', so that any 'Runner's which have sufficient capabilities can be used to run the given 'Markup'.
 -- There may be problems regarding type inference, but it ought to work fine.
@@ -230,46 +223,40 @@ runMarkupWithTwo ::
   result
 runMarkupWithTwo runner1 runner2 = runMarkupWithTwoExact (reduceRunner runner1) (reduceRunner runner2)
 
--- | Used to Combine multiple 'Markup's.
-data MarkupBuilder (elems :: [*]) (children :: [*]) e = MarkupBuilder [Markup elems children e]
+-- | Prepend a `Markup` element to a list of `Markup`s.
+(+:) :: Markup elems children e -> [Markup elems2 children2 e] -> [Markup (elems <+ elems2) (children <+ children2) e]
+(+:) markup markups = unsafeCoerce markup : unsafeCoerce markups
 
-instance Functor (MarkupBuilder elems elems2) where
-  fmap f (MarkupBuilder markup) = MarkupBuilder $ fmap (fmap f) markup
+-- | Concatenate two lists of `Markup`s.
+(+++) :: [Markup elems children e] -> [Markup elems2 children2 e] -> [Markup (elems <+ elems2) (children <+ children2) e]
+(+++) markups1 markups2 = unsafeCoerce markups1 ++ unsafeCoerce markups2
 
--- | Empty markup builder with no elements.
-emptyMarkupBuilder :: MarkupBuilder '[] '[] e
-emptyMarkupBuilder = MarkupBuilder []
+-- | Empty list of `Markup`s, which is sometimes needed for type inference.
+noElems :: [Markup '[] '[] e]
+noElems = []
 
--- | Adds a 'Markup' to a 'MarkupBuilder' while properly updating its types.
-(+->) :: MarkupBuilder elems children e -> Markup elems2 children2 e -> MarkupBuilder (elems <+ elems2) (children <+ children2) e
-(+->) (MarkupBuilder markups) markup = unsafeCoerce $ MarkupBuilder $ markups ++ [unsafeCoerce markup]
+infixr 2 +:
+infixr 2 +++
 
-infixl 2 +->
-
--- | Get the 'Markup's of a MarkupBuilder in a list, so that each 'Markup' has the same type.
-getMarkups :: MarkupBuilder elems children e -> [Markup elems children e]
-getMarkups (MarkupBuilder markups) = markups
-
--- | Get 'SimpleMarkup's instead of 'Markup's.
-getSimpleMarkups :: MarkupBuilder elems children e -> [SimpleMarkup (elems <+ children) e]
-getSimpleMarkups = fmap unsafeCoerce . getMarkups
-
--- TODO: Documentation
-
+-- | Wrapper for elements which should be used as options for other elements.
 newtype Options (os :: [*]) e = Options [SimpleMarkup os e]
 
-(%%) ::
+-- | Concatenate two `Options`.
+(//) ::
   Options os1 e ->
   Options os2 e ->
   Options (os1 <+ os2) e
-(%%) (Options options1) (Options options2) = Options (unsafeCoerce options1 ++ unsafeCoerce options2)
+(//) (Options options1) (Options options2) = Options (options1 +++ options2)
 
-none :: Options '[] e
-none = Options []
+-- | Empty `Options`.
+noOps :: Options '[] e
+noOps = Options []
 
+-- | Wrap an element in `Options`.
 makeOption :: Typeable (GetId t) => Element t '[] e -> Options '[t] e
 makeOption elem = Options [toSimpleMarkup $ toMarkup elem]
 
+-- | Expand the type of an `Options` similar to `expandMarkup`.
 expandOptions :: SubList elems expanded => Options elems e -> Options expanded e
 expandOptions = unsafeCoerce
 
@@ -303,17 +290,16 @@ type family MaybeAdd (b :: Bool) x xs where
 -- * The relative order of the elements is maintained.
 -- * If there exist two elements with a type-level argument as their last argument, then those two elements
 --   are replaced by a single one with a merged type-level list.
-type family Merge (as :: [*]) (bs :: [*]) where
-  Merge xs xs = xs
-  Merge xs '[] = xs
-  Merge '[] ys = ys
-  Merge (x : xs) ys = Collect x ys : (Merge xs (CollectRemove x ys))
 
-type a <+ b = Merge a b
+type family (<+) (as :: [*]) (bs :: [*]) where
+  xs <+ xs = xs
+  xs <+ '[] = xs
+  '[] <+ ys = ys
+  (x : xs) <+ ys = Collect x ys : (xs <+ (CollectRemove x ys))
 
 type family MergeElements a b :: * where
   MergeElements a a = a
-  MergeElements (f a) (f b) = f (Merge a b)
+  MergeElements (f a) (f b) = f (a <+ b)
   MergeElements x _ = x
 
 type family Collect a (as :: [*]) :: * where

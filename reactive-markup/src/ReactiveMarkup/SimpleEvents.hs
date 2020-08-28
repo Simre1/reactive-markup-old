@@ -11,7 +11,7 @@ module ReactiveMarkup.SimpleEvents
     -- * Events & Behaviors
     Event,
     EventHandler,
-    EventTrigger,
+    EventTrigger(..),
     Behavior,
     Dynamic,
 
@@ -43,7 +43,6 @@ module ReactiveMarkup.SimpleEvents
     newDynamic,
     reactimate,
     modifyEvent,
-    triggerEvent,
     runIOInES,
     customBehavior,
     customEvent,

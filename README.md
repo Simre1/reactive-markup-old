@@ -26,32 +26,31 @@ import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
 basicElements :: SimpleMarkup '[Label '[Text, FontWeight, FontStyle, FontSize, FontColour], List '[], DynamicState, DynamicMarkup, Button '[Click, Text]] e
-basicElements = expandMarkup $
-  list
-    none
-    ( emptyMarkupBuilder
-        +-> (label (text "Some text"))
-        +-> label (italicStyle %% text "Italic text")
-        +-> list none (emptyMarkupBuilder +-> label (bold %% text "Bold text") +-> label (bold %% text "Another bold text"))
-        +-> dynamicState
-          0
-          (\i _ -> (Just $ succ i, Nothing))
-          ( flip dynamicMarkup $ \i ->
-              list
-                none
-                ( emptyMarkupBuilder
-                    +-> button (onClick () %% text "Change Colour")
-                    +-> label (fontSizePx 20 %% fontColour (rainbowColour i) %% text "Colourful!")
-                )
-          )
-    )
+basicElements =
+  expandMarkup $
+    list
+      noOps
+      ( label (text "Some text")
+          +: label (italicStyle // text "Italic text")
+          +: list noOps [label (bold // text "Bold text"), label (bold // text "Another bold text")]
+          +: [ dynamicState
+                 0
+                 (\i _ -> (Just $ succ i, Nothing))
+                 ( flip dynamicMarkup $ \i ->
+                     list
+                       noOps
+                       $ button (onClick () // text "Change Colour")
+                         +: [label (fontSizePx 20 // fontColour (rainbowColour i) // text "Colourful!")]
+                 )
+             ]
+      )
 
 rainbowColour :: Int -> Colour Double
 rainbowColour i = blend factor3 (blend factor2 red yellow) (blend factor2 (blend factor1 red yellow) blue)
   where
     factor1 = sin (0.35 * fromIntegral i)
     factor2 = sin (0.2 * fromIntegral i)
-    factor3 = 0.5 + sin (0.25 * fromIntegral i) / 4
+    factor3 = 0.5 + sin (0.25 * fromIntegral i) / 2
 ```
 
 Here is a screenshot of the above example:
@@ -115,14 +114,13 @@ I am currently testing hot reloading with the help of ghcid.
 
 You can try it out with:
 ```bash
-ghcid --command="stack ghci" --run="hotReloadMarkupWithoutAsking (\_ -> pure ()) Examples.BasicElements.basicElements"
+ghcid --command="stack ghci" --run="hotReloadMarkupWithoutAsking $ runMarkup widgetRunner (\_ -> pure ()) Examples.BasicElements.basicElements
 ```
 
-This will hot-reload the example in _examples/src/Main.hs_.
+This will hot-reload the example in _examples/Examples/BasicElements.hs_.
 
-If you are using another build system, make sure that _ghci_ loads _gtk-hotreload/src/HotReload.hs_. You can then hot-reload any **Markup** that is in scope in _ghci_ and that is within the capabilities of the GTK **Runner**!
+If you are using another build system, make sure that _ghci_ loads _gtk-hotreload/src/HotReload.hs_ and _reactive-markup-gtk/src/ReactiveMarkup/Runners/Gtk.hs_. You can then hot-reload any **Markup** that is in scope in _ghci_ and that is within the capabilities of the GTK **Runner**!
 
 ## Call for participation
 
 This library is rather ambitious and every helping hand is greatly appreciated. Feel free to tinker with this library and share your thoughts!
-

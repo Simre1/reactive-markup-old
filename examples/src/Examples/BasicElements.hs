@@ -12,24 +12,23 @@ import ReactiveMarkup.Markup
 import ReactiveMarkup.Runners.Gtk
 
 basicElements :: SimpleMarkup '[Label '[Text, FontWeight, FontStyle, FontSize, FontColour], List '[], DynamicState, DynamicMarkup, Button '[Click, Text]] e
-basicElements = expandMarkup $
-    list'
-      none
-      ( emptyMarkupBuilder
-          +-> (label (text "Some text"))
-          +-> label (italicStyle %% text "Italic text")
-          +-> list' none (emptyMarkupBuilder +-> label (bold %% text "Bold text") +-> label (bold %% text "Another bold text"))
-          +-> dynamicState
-            0
-            (\i _ -> (Just $ succ i, Nothing))
-            ( flip dynamicMarkup $ \i ->
-                list'
-                  none
-                  ( emptyMarkupBuilder
-                      +-> button (onClick () %% text "Change Colour")
-                      +-> label (fontSizePx 20 %% fontColour (rainbowColour i) %% text "Colourful!")
-                  )
-            )
+basicElements =
+  expandMarkup $
+    list
+      noOps
+      ( label (text "Some text")
+          +: label (italicStyle // text "Italic text")
+          +: list noOps [label (bold // text "Bold text"), label (bold // text "Another bold text")]
+          +: [ dynamicState
+                 0
+                 (\i _ -> (Just $ succ i, Nothing))
+                 ( flip dynamicMarkup $ \i ->
+                     list
+                       noOps
+                       $ button (onClick () // text "Change Colour")
+                         +: [label (fontSizePx 20 // fontColour (rainbowColour i) // text "Colourful!")]
+                 )
+             ]
       )
 
 rainbowColour :: Int -> Colour Double
