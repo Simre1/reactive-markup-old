@@ -16,6 +16,8 @@ module ReactiveMarkup.Runners.Gtk
   )
 where
 
+import qualified ReactiveMarkup.Runners.StateTree as ST
+
 import Control.Monad (forM_, when, join, replicateM_)
 import Control.Monad.IO.Class
 import qualified Control.Monad.Trans.Reader as R
@@ -38,7 +40,6 @@ import qualified Graphics.Rendering.Cairo.Internal as C (runRender, Cairo(..))
 import Control.Monad.Trans.Reader (ReaderT(runReaderT))
 import Foreign.Marshal.Alloc (free)
 import Foreign.Ptr (nullPtr, castPtr)
-
 import ReactiveMarkup
 import Data.Word (Word32)
 import qualified Data.GI.Base.Signals as GLib
@@ -46,11 +47,13 @@ import Data.Proxy
 import Diagrams.Core (Diagram)
 import Control.Concurrent (forkOS)
 import Control.Concurrent.MVar (putMVar, takeMVar, newEmptyMVar)
+import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
 
 type GtkElements =
   [ Label ('[Text] |-> BasicStyling),
     List ('[Orientation] |-> Expandable),
     Button ('[Text, Activate, Click] |-> Expandable |-> BasicStyling),
+    ToggleButton '[Toggle],
     DynamicState,
     DynamicStateIO,
     DynamicMarkup,
@@ -61,7 +64,8 @@ type GtkElements =
     TextInput ('[Text, TextChange, Activate] |-> BasicStyling),
     HotKey,
     DrawingBoard '[DrawDiagram BC.Cairo, DrawDynamicDiagram BC.Cairo, MouseClickWithPosition, AspectRatio],
-    Notebook
+    Notebook,
+    Menu
   ]
 
 type Expandable = '[HorizontalExpand, VerticalExpand]
@@ -86,6 +90,7 @@ widgetRunner =
     |-> runLabel
     |-> runList
     |-> runButton
+    |-> runToggleButton
     |-> runDynamicState
     |-> runDynamicStateIO
     |-> runDynamicMarkup
@@ -99,6 +104,7 @@ widgetRunner =
     |-> runHotKey
     |-> runDrawingBoard
     |-> runNotebook
+    |-> runMenu
 
 runLabel :: Runner '[Label ('[Text] |-> BasicStyling)] (IO ()) (GtkM Gtk.Widget)
 runLabel = eventRun $ \(Label options) handleEvent -> do
@@ -138,6 +144,12 @@ runButton = eventRun $ \(Button options) handleEvent -> do
   widget <- Gtk.toWidget button
   pure widget
 
+runToggleButton :: Runner '[ToggleButton '[Toggle]] (IO ()) (GtkM Gtk.Widget)
+runToggleButton = eventRun $ \(ToggleButton options) handleEvent -> do
+  button <- Gtk.new Gtk.ToggleButton []
+  applyOptions button options handleEvent $ runToggle
+  Gtk.toWidget button
+
 runDynamicState :: Runner '[DynamicState] (IO ()) (GtkM Gtk.Widget)
 runDynamicState = fullRun $ \(DynamicState state mapEvent generateMarkup) childRunner handleOuterEvent -> do
   (dynamicState, updateState) <- liftIO $ newDynamic state
@@ -160,13 +172,14 @@ runDynamicStateIO = fullRun $ \(DynamicStateIO state mapEvent generateMarkup) ch
 
 runDynamicMarkup :: Runner '[DynamicMarkup] (IO ()) (GtkM Gtk.Widget)
 runDynamicMarkup = fullRun $ \(DynamicMarkup dynamicState generateMarkup) childRunner handleEvent -> do
-  boxLayout <- Gtk.new Gtk.Box [#expand Gtk.:= True, #orientation Gtk.:= Gtk.OrientationVertical]
+  frame <- Gtk.new Gtk.Frame []
+  Gtk.frameSetShadowType frame Gtk.ShadowTypeNone
   state <- liftIO $ current $ toBehavior dynamicState
   cleanUpRef <- liftIO $ newIORef (pure ())
   let setWidget widget = liftIO $ do
         cleanUp <- join $ readIORef cleanUpRef
-        writeIORef cleanUpRef (#remove boxLayout widget)
-        #add boxLayout widget
+        writeIORef cleanUpRef (#remove frame widget)
+        #add frame widget
         #showAll widget
       generateWidget state = do
         runMarkup childRunner handleEvent $ generateMarkup state
@@ -175,7 +188,7 @@ runDynamicMarkup = fullRun $ \(DynamicMarkup dynamicState generateMarkup) childR
     liftIO $
       reactimate (toEvent dynamicState) $ simpleEventHandler handler
   generateWidget state >>= setWidget
-  widget <- Gtk.toWidget boxLayout
+  widget <- Gtk.toWidget frame
   Gtk.on widget #destroy (liftES unregisterWidgetUpdate)
   pure widget
 
@@ -316,9 +329,6 @@ runDrawingBoard = eventRun $ \(DrawingBoard (Options options)) handleEvent -> do
         h <- Gdk.getRectangleHeight rect
         triggerEvent triggerResize (fromEnum w, fromEnum h)
       Gtk.onWidgetDraw drawingArea $ \context -> do
-        -- ptr <- current $ toBehavior $ dynamicDiagram
-        -- width <- fromIntegral <$> Gtk.widgetGetAllocatedWidth drawingArea
-        -- height <- fromIntegral <$> Gtk.widgetGetAllocatedHeight drawingArea
         (width, height) <- current $ toBehavior resizeDynamic
         ptr <- readIORef imagePtr
         C.withImageSurfaceForData (castPtr ptr) C.FormatARGB32 width height (C.formatStrideForWidth C.FormatARGB32 width) $ \surface -> do
@@ -370,6 +380,16 @@ runNotebook = fullRun $ \(Notebook pages) runner handleEvent -> do
     gtkContent <- runMarkup runner handleEvent content
     Gtk.notebookAppendPage notebook gtkContent (Just gtkLabel)
   Gtk.toWidget notebook
+
+runMenu :: Runner '[Menu] (IO ()) (GtkM Gtk.Widget)
+runMenu = fullRun $ \(Menu items) runner handleEvent -> do
+  menu <- Gtk.new Gtk.Menu []
+  forM_ items $ \item -> do
+    menuItem <- Gtk.new Gtk.MenuItem []
+    gtkWidget <- runMarkup runner handleEvent item
+    #add menuItem gtkWidget
+    #add menu menuItem
+  Gtk.toWidget menu
 
 type GtkOption o = GtkM (T.Text, [Gtk.AttrOp o Gtk.AttrSet], o -> GtkM ())
 
@@ -442,6 +462,9 @@ runActivate = eventRun (\(Activate e) handleEvent -> pure ("", [], \o -> Gtk.on 
 runClick :: AllowedSignal o "clicked" info => Runner ('[Click]) (IO ()) (GtkOption o)
 runClick = eventRun $ \(Click e) handleEvent -> pure ("", [], \o -> Gtk.on o #clicked (handleEvent e) *> pure ())
 
+runToggle :: (Gtk.IsToggleButton o, AllowedSignal o "toggled" info) => Runner ('[Toggle]) (IO ()) (GtkOption o)
+runToggle = eventRun $ \(Toggle e) handleEvent -> pure ("", [], \o -> Gtk.on o #toggled (e <$> Gtk.getToggleButtonActive o >>= handleEvent) *> pure ())
+
 runHomogenousRows :: AllowedAttr o "rowHomogeneous" Bool => Runner ('[HomogenousRows]) (IO ()) (GtkOption o)
 runHomogenousRows = simpleRun $ \HomogenousRows -> pure ("", [#rowHomogeneous Gtk.:= True], const (pure ()))
 
@@ -455,8 +478,6 @@ defaultGtkState :: Gtk.Window -> IO GtkState
 defaultGtkState window = do
   idRef <- newIORef 0
   eventControllerKey <- Gtk.eventControllerKeyNew window
-  -- styleContext <- Gtk.styleContextNew
-  -- colour <- getColor styleContext
   pure $ GtkState idRef window eventControllerKey
     where 
       getColor :: Gtk.StyleContext -> IO (Colour Double)

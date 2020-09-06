@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b4dbc0974b179551ee45bdd82e91ae2dde5c246efcd3ff44b7fbc1b51b28dd2c
+-- hash: 7040a355641266400f4511bd376477cfbea796dd663b81535a14cf3b65fac7ad
 
 name:           reactive-markup-gtk
 version:        0.1.0.0
@@ -23,6 +23,7 @@ source-repository head
 library
   exposed-modules:
       ReactiveMarkup.Runners.Gtk
+      ReactiveMarkup.Runners.StateTree
   other-modules:
       Paths_reactive_markup_gtk
   hs-source-dirs:

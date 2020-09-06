@@ -142,3 +142,10 @@ data instance Element Click elems e = Click e
 
 onClick :: e -> Options '[Click] e
 onClick = makeOption . Click
+
+data Toggle deriving Typeable
+
+data instance Element Toggle elems e = Toggle (Bool -> e)
+
+onToggle :: (Bool -> e) -> Options '[Toggle] e
+onToggle = makeOption . Toggle

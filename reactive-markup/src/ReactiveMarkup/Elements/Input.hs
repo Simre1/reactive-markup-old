@@ -11,6 +11,10 @@ data instance Element (TextInput options) elems e = TextInput (Options options e
 textInput :: Options options e -> Markup '[TextInput options] '[] e
 textInput = toMarkup . TextInput
 
+data ToggleButton (options :: [*]) deriving Typeable
+
+data instance Element (ToggleButton options) elems e = ToggleButton (Options options e)
+
 data Modifier = ModShift | ModControl | ModAlt | ModSuper deriving (Eq, Show)
 
 data HotKey deriving (Typeable)
@@ -54,3 +58,4 @@ hotKey givenKey givenModifiers event = hotKeyFunction $ \key modifiers ->
   if (givenKey == key) && all (`elem` modifiers) givenModifiers
     then Just event
     else Nothing
+  

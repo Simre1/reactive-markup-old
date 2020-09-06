@@ -7,8 +7,7 @@ import ReactiveMarkup.SimpleEvents
 
 data Menu deriving Typeable
 
-data MenuChild deriving Typeable
+data instance Element Menu elems e = Menu [SimpleMarkup elems e]
 
-data instance Element Menu elems e = Menu (Markup '[MenuChild] elems e)
-
-data instance Element MenuChild elems e = MenuChild (Markup '[Button '[]] '[] e)
+menu :: [Markup elems children e] -> Markup '[Menu] (elems <+ children) e
+menu = toMarkup . Menu . fmap toSimpleMarkup
