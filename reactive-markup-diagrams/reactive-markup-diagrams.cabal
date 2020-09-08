@@ -1,0 +1,47 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: c1901137e6656a5070395ff25de346460f5f139d8ad4f246af782d2c05007759
+
+name:           reactive-markup-diagrams
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/reactive-markup-diagrams#readme>
+homepage:       https://github.com/githubuser/reactive-markup-diagrams#readme
+bug-reports:    https://github.com/githubuser/reactive-markup-diagrams/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2020 Author name here
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/reactive-markup-diagrams
+
+library
+  exposed-modules:
+      ReactiveMarkup.Diagrams
+  other-modules:
+      Paths_reactive_markup_diagrams
+  hs-source-dirs:
+      src
+  default-extensions: OverloadedLabels OverloadedStrings GADTs MultiParamTypeClasses TypeFamilies TypeOperators DataKinds DeriveFunctor FlexibleContexts FlexibleInstances ScopedTypeVariables RankNTypes TypeApplications FunctionalDependencies
+  build-depends:
+      base >=4.7 && <5
+    , cairo
+    , diagrams-cairo
+    , diagrams-core
+    , gi-cairo
+    , gi-gdk
+    , gi-gtk
+    , reactive-markup
+    , reactive-markup-gtk
+    , transformers
+  default-language: Haskell2010

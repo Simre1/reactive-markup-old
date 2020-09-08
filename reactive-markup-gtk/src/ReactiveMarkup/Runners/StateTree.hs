@@ -1,84 +1,150 @@
 module ReactiveMarkup.Runners.StateTree where
 
-import System.Mem.StableName
-import qualified Data.Text as T
+-- import Data.Coerce (coerce)
+-- import Data.IORef (newIORef, readIORef)
+-- import qualified Data.Text as T
+-- import ReactiveMarkup
+-- import System.Mem.StableName
 
-import ReactiveMarkup
-import Data.Coerce (coerce)
-import Data.IORef (readIORef, newIORef)
+-- type StateTreeElements a =
+--   [ Label ('[Text] |-> BasicStyling),
+--     List ('[Orientation] |-> Expandable),
+--     Button ('[Text, Activate, Click] |-> Expandable |-> BasicStyling),
+--     ToggleButton '[Toggle],
+--     DynamicState,
+--     DynamicStateIO,
+--     DynamicMarkup,
+--     HandleEvent,
+--     HandleEventIO,
+--     FlowLayout '[Orientation],
+--     GridLayout [HomogenousRows, HomogenousColumns],
+--     TextInput ('[Text, TextChange, Activate] |-> BasicStyling),
+--     HotKey,
+--     DrawingBoard '[DrawDiagram a, DrawDynamicDiagram a, MouseClickWithPosition, AspectRatio],
+--     Notebook,
+--     Menu
+--   ]
 
-newtype StableName' = StableName' (StableName ()) deriving Eq
+-- type Expandable = '[HorizontalExpand, VerticalExpand]
 
-makeStableName' :: a -> IO StableName'
-makeStableName' = fmap coerce . makeStableName
+-- type BasicStyling = '[FontSize, FontWeight, FontStyle, FontColour, BackgroundColour]
 
-instance Show StableName' where
-  show (StableName' stableName) = show $ hashStableName stableName
+-- data StateTreeElement
+--   = STLabel
+--   | STList
+--   | STButton
+--   | STToggleButton
+--   | STDynamicState
+--   | STDynamicStateIO
+--   | StDynamicMarkup
+--   | STHandleEvent
+--   | STHandleEventIO
+--   | STFLowLayout
+--   | STGridLayout
+--   | STTextInput
+--   | STHotKey
+--   | STNotebook
+--   | STMenu
+--   deriving (Eq, Enum, Ord, Show)
 
-data StateTree
-  = SingleWidget WidgetDescription
-  | ContainerWidget WidgetDescription (StableName', [StateTree])
-  deriving (Eq, Show)
+-- runLabel :: Runner '[Label ('[Text] |-> BasicStyling)] Void (IO StateTree)
+-- runLabel = simpleRun $ \(Label options) -> do
+--   SingleWidget . WidgetDescription STLabel . coerce <$> makeStableName' options
 
-data WidgetDescription = WidgetDescription
-  { widgetType :: StateTreeElement,
-    widgetAttributes :: StableName'
-  } deriving (Eq, Show)
+-- runList :: Runner '[List ('[Orientation] |-> Expandable)] Void (IO StateTree)
+-- runList = simpleRun $ \(List options children) -> do
+--   SingleWidget . WidgetDescription STList . coerce <$> makeStableName' options
 
+-- runButton :: Runner '[Button ('[Text, Activate, Click] |-> Expandable |-> BasicStyling)] Void (IO StateTree)
+-- runButton = simpleRun $ \(Button options) -> do
+--   SingleWidget . WidgetDescription STButton . coerce <$> makeStableName' options
 
-data Transition =
-  Keep | Delete | Add | Replace | Modify AttributeTransition [Transition] deriving Show
+-- -- ToggleButton '[Toggle],
+-- -- DynamicState,
+-- -- DynamicStateIO,
+-- -- DynamicMarkup,
+-- -- HandleEvent,
+-- -- HandleEventIO,
+-- -- FlowLayout '[Orientation],
+-- -- GridLayout [HomogenousRows, HomogenousColumns],
+-- -- TextInput ('[Text, TextChange, Activate] |-> BasicStyling),
+-- -- HotKey,
+-- -- Notebook,
+-- -- Menu
 
-data AttributeTransition = AttrKeep | AttrReplace deriving Show
+-- data Widget = Widget { getGtkWidget :: Gtk.Widget, getWidgetTree :: WidgetTree}
 
-computeTransition :: StateTree -> StateTree -> Transition
-computeTransition (SingleWidget _) (ContainerWidget _ _) = Replace
-computeTransition (ContainerWidget _ _) (SingleWidget _) = Replace
-computeTransition (SingleWidget wd1) (SingleWidget wd2)
-  | wd1 == wd2 = Keep
-  | widgetType wd1 == widgetType wd2 = Modify AttrReplace []
-  | otherwise = Replace
-computeTransition (ContainerWidget wd1 (s1,c1)) (ContainerWidget wd2 (s2,c2))
-  | wd1 == wd2 && s1 == s2 = Keep
-  | wd1 == wd2 = Modify AttrKeep $ 
-      let children = zipWith computeTransition c1 c2
-      in if length children <= length c1 
-        then children ++ take (length c1 - length children) (repeat Delete)
-        else children ++ take (length c2 - length children) (repeat Add)
-  | widgetType wd1 /= widgetType wd2 = Replace
-  | s1 == s2 = Modify AttrReplace $ const Keep <$> c1
-  | otherwise = Replace
+-- newtype UniqueName = UniqueName (StableName ()) deriving (Eq)
 
+-- makeUniqueName :: a -> GtkM UniqueName
+-- makeUniqueName = liftIO . fmap coerce . makeStableName
 
-type StateTreeElements a =
-  [ Label ('[Text] |-> BasicStyling),
-    List ('[Orientation] |-> Expandable),
-    Button ('[Text, Activate, Click] |-> Expandable |-> BasicStyling),
-    ToggleButton '[Toggle],
-    DynamicState,
-    DynamicStateIO,
-    DynamicMarkup,
-    HandleEvent,
-    HandleEventIO,
-    FlowLayout '[Orientation],
-    GridLayout [HomogenousRows, HomogenousColumns],
-    TextInput ('[Text, TextChange, Activate] |-> BasicStyling),
-    HotKey,
-    DrawingBoard '[DrawDiagram a, DrawDynamicDiagram a, MouseClickWithPosition, AspectRatio],
-    Notebook,
-    Menu
-  ]
+-- instance Show UniqueName where
+--   show (UniqueName stableName) = show $ hashStableName stableName
 
-type Expandable = '[HorizontalExpand, VerticalExpand]
+-- data WidgetTree
+--   = SingleWidget WidgetDescription
+--   | ContainerWidget WidgetDescription (UniqueName, [WidgetTree])
+--   deriving (Eq, Show)
 
-type BasicStyling = '[FontSize, FontWeight, FontStyle, FontColour, BackgroundColour]
+-- data WidgetDescription = WidgetDescription
+--   { widgetType :: T.Text,
+--     widgetAttributes :: UniqueName
+--   }
+--   deriving (Eq, Show)
 
-data StateTreeElement = STLabel | STList deriving (Eq, Enum, Ord, Show)
+-- data Transition
+--   = Keep
+--   | Delete
+--   | Add
+--   | Replace
+--   | Modify AttributeTransition [Transition]
+--   deriving (Show)
 
-runLabel :: Runner '[Label ('[Text] |-> BasicStyling)] Void (IO StateTree)
-runLabel = simpleRun $ \(Label options) -> do
-  SingleWidget . WidgetDescription STLabel . coerce <$> makeStableName' options
+-- data AttributeTransition = AttrKeep | AttrReplace deriving (Show)
 
-runList :: Runner '[List ('[Orientation] |-> Expandable)] Void (IO StateTree)
-runList = simpleRun $ \(List options children) -> do
-  SingleWidget . WidgetDescription STList . coerce <$> makeStableName' options
+-- computeTransition :: WidgetTree -> WidgetTree -> Transition
+-- computeTransition (SingleWidget _) (ContainerWidget _ _) = Replace
+-- computeTransition (ContainerWidget _ _) (SingleWidget _) = Replace
+-- computeTransition (SingleWidget wd1) (SingleWidget wd2)
+--   | wd1 == wd2 = Keep
+--   | widgetType wd1 == widgetType wd2 = Modify AttrReplace []
+--   | otherwise = Replace
+-- computeTransition (ContainerWidget wd1 (s1, c1)) (ContainerWidget wd2 (s2, c2))
+--   | wd1 == wd2 && s1 == s2 = Keep
+--   | wd1 == wd2 =
+--     Modify AttrKeep $
+--       let children = zipWith computeTransition c1 c2
+--        in if length children <= length c1
+--             then children ++ take (length c1 - length children) (repeat Delete)
+--             else children ++ take (length c2 - length children) (repeat Add)
+--   | widgetType wd1 /= widgetType wd2 = Replace
+--   | s1 == s2 = Modify AttrReplace $ const Keep <$> c1
+--   | otherwise = Replace
+--   = Keep
+--   | Delete
+--   | Add
+--   | Replace
+--   | Modify AttributeTransition [Transition]
+--   deriving (Show)
+
+-- data AttributeTransition = AttrKeep | AttrReplace deriving (Show)
+
+-- computeTransition :: WidgetTree -> WidgetTree -> Transition
+-- computeTransition (SingleWidget _) (ContainerWidget _ _) = Replace
+-- computeTransition (ContainerWidget _ _) (SingleWidget _) = Replace
+-- computeTransition (SingleWidget wd1) (SingleWidget wd2)
+--   | wd1 == wd2 = Keep
+--   | widgetType wd1 == widgetType wd2 = Modify AttrReplace []
+--   | otherwise = Replace
+-- computeTransition (ContainerWidget wd1 (s1, c1)) (ContainerWidget wd2 (s2, c2))
+--   | wd1 == wd2 && s1 == s2 = Keep
+--   | wd1 == wd2 =
+--     Modify AttrKeep $
+--       let children = zipWith computeTransition c1 c2
+--        in if length children <= length c1
+--             then children ++ take (length c1 - length children) (repeat Delete)
+--             else children ++ take (length c2 - length children) (repeat Add)
+--   | widgetType wd1 /= widgetType wd2 = Replace
+--   | s1 == s2 = Modify AttrReplace $ const Keep <$> c1
+--   | otherwise = Replace

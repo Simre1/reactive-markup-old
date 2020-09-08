@@ -17,7 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: lts-16.5
+resolver: lts-16.7
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -30,12 +30,25 @@ resolver: lts-16.5
 #   - wai
 packages:
 - .
-- ../reactive-markup
 # Dependency packages to be pulled from upstream that are not in the resolver.
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
 #
+extra-deps:
+- cairo-0.13.8.1@sha256:1938aaeb5d3504678d995774dfe870f6b66cbd43d336b692fa8779b23b2b67a9,4075
+- gtk2hs-buildtools-0.13.8.0@sha256:132f38155fc677430a47ea750918973161c876fb6f281d342ac2f07eb99229ce,5238
+- diagrams-cairo-1.4.1.1@sha256:24dd541b2c98f5a5785a68ea136bf154a4ffca571e0638660dd1ced45e4a84cb,3811
+- pango-0.13.8.1@sha256:877b121c0bf87c96d3619effae6751ecfd74b7f7f3227cf3fde012597aed5ed9,3917
+- glib-0.13.8.1@sha256:42670daf0c85309281e08ba8559df75daa2e3be642e79fdfa781bef5e59658b0,3156
+- ../reactive-markup
+- ../reactive-markup-gtk
 
+
+# - acme-missiles-0.3
+# - git: https://github.com/commercialhaskell/stack.git
+#   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
+#
+# extra-deps: []
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

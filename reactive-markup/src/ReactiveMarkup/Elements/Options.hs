@@ -7,6 +7,7 @@ import Data.Colour.SRGB (Colour)
 import qualified Data.Text as T
 import Data.Typeable
 import ReactiveMarkup.Markup
+import ReactiveMarkup.SimpleEvents
 import Unsafe.Coerce (unsafeCoerce)
 
 data SizeUnit = Pixel Int | Percent Int
@@ -17,6 +18,13 @@ data instance Element Text elems e = Text T.Text
 
 text :: T.Text -> Options '[Text] e
 text = makeOption . Text
+
+data DynamicText deriving Typeable
+
+data instance Element DynamicText elems e = DynamicText (Dynamic T.Text)
+
+dynamicText :: Dynamic T.Text -> Options '[DynamicText] e
+dynamicText = makeOption . DynamicText
 
 data FontSize deriving (Typeable)
 

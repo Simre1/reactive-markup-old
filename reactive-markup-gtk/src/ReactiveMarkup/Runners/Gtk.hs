@@ -12,11 +12,9 @@ module ReactiveMarkup.Runners.Gtk
     runGtkM,
     GtkState(..),
     defaultGtkState,
-    BC.Cairo
+    -- BC.Cairo
   )
 where
-
-import qualified ReactiveMarkup.Runners.StateTree as ST
 
 import Control.Monad (forM_, when, join, replicateM_)
 import Control.Monad.IO.Class
@@ -32,11 +30,6 @@ import qualified GI.Gtk as Gtk
 import qualified GI.Gdk as Gdk
 import qualified Data.GI.Base.Overloading as GI
 import qualified Data.GI.Base.Attributes as GI
-import qualified Diagrams.Backend.Cairo as BC (Cairo) 
-import qualified Diagrams.Backend.Cairo.Ptr as BC (renderPtr)
-import qualified GI.Cairo as GIC
-import qualified Graphics.Rendering.Cairo as C
-import qualified Graphics.Rendering.Cairo.Internal as C (runRender, Cairo(..))
 import Control.Monad.Trans.Reader (ReaderT(runReaderT))
 import Foreign.Marshal.Alloc (free)
 import Foreign.Ptr (nullPtr, castPtr)
@@ -44,15 +37,17 @@ import ReactiveMarkup
 import Data.Word (Word32)
 import qualified Data.GI.Base.Signals as GLib
 import Data.Proxy
-import Diagrams.Core (Diagram)
 import Control.Concurrent (forkOS)
 import Control.Concurrent.MVar (putMVar, takeMVar, newEmptyMVar)
 import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
 
+import System.Mem.StableName
+import Data.Coerce (coerce)
+
 type GtkElements =
-  [ Label ('[Text] |-> BasicStyling),
+  [ Label ('[Text, DynamicText] |-> BasicStyling),
     List ('[Orientation] |-> Expandable),
-    Button ('[Text, Activate, Click] |-> Expandable |-> BasicStyling),
+    Button ('[Text, DynamicText, Activate, Click] |-> Expandable |-> BasicStyling),
     ToggleButton '[Toggle],
     DynamicState,
     DynamicStateIO,
@@ -61,9 +56,9 @@ type GtkElements =
     HandleEventIO,
     FlowLayout '[Orientation],
     GridLayout [HomogenousRows, HomogenousColumns],
-    TextInput ('[Text, TextChange, Activate] |-> BasicStyling),
+    TextInput ('[Text, DynamicText, TextChange, Activate] |-> BasicStyling),
     HotKey,
-    DrawingBoard '[DrawDiagram BC.Cairo, DrawDynamicDiagram BC.Cairo, MouseClickWithPosition, AspectRatio],
+    -- DrawingBoard '[DrawDiagram BC.Cairo, DrawDynamicDiagram BC.Cairo, MouseClickWithPosition, AspectRatio],
     Notebook,
     Menu
   ]
@@ -102,22 +97,21 @@ widgetRunner =
     -- input elements
     |-> runTextInput
     |-> runHotKey
-    |-> runDrawingBoard
     |-> runNotebook
     |-> runMenu
 
-runLabel :: Runner '[Label ('[Text] |-> BasicStyling)] (IO ()) (GtkM Gtk.Widget)
-runLabel = eventRun $ \(Label options) handleEvent -> do
+runLabel :: Runner '[Label ('[Text, DynamicText] |-> BasicStyling)] (IO ()) (GtkM Gtk.Widget)
+runLabel = eventRun $ \label@(Label options) handleEvent -> do
   label <- Gtk.new Gtk.Label []
-  widget <- Gtk.toWidget label
-  applyOptions label options handleEvent $ runTextLabel |-> runBasicStyling
-  pure widget
+  gtkWidget <- Gtk.toWidget label
+  applyOptions label options handleEvent $ runTextLabel |-> runDynamicTextLabel |-> runBasicStyling
+  pure gtkWidget
 
 runList :: Runner '[List ('[Orientation] |-> Expandable)] (IO ()) (GtkM Gtk.Widget)
 runList = fullRun $ \(List options children) runner handleEvent -> do
   boxLayout <- Gtk.new Gtk.Box [#orientation Gtk.:= Gtk.OrientationVertical]
   applyOptions boxLayout options handleEvent $ runOrientation |-> runExpandable
-  sequenceA $ (\markup -> runMarkup runner handleEvent markup >>= #add boxLayout) <$> children
+  traverse (\markup -> runMarkup runner handleEvent markup >>= #add boxLayout) children
   Gtk.toWidget boxLayout
 
 -- runBox :: Runner (Box [MinWidth, MinHeight]) IO (GtkM Gtk.Widget)
@@ -137,12 +131,11 @@ runList = fullRun $ \(List options children) runner handleEvent -> do
 --         toCssUnit (Pixel p) = T.pack (show p) <> "px"
 --         toCssUnit (Percent p) = T.pack (show p) <> "%"
 
-runButton :: Runner '[Button ('[Text, Activate, Click] |-> Expandable |-> BasicStyling)] (IO ()) (GtkM Gtk.Widget)
+runButton :: Runner '[Button ('[Text, DynamicText, Activate, Click] |-> Expandable |-> BasicStyling)] (IO ()) (GtkM Gtk.Widget)
 runButton = eventRun $ \(Button options) handleEvent -> do
   button <- Gtk.new Gtk.Button []
-  applyOptions button options handleEvent $ runTextLabel |-> runActivate |-> runClick |-> runExpandable |-> runBasicStyling 
-  widget <- Gtk.toWidget button
-  pure widget
+  applyOptions button options handleEvent $ runTextLabel |-> runDynamicTextLabel |-> runActivate |-> runClick |-> runExpandable |-> runBasicStyling 
+  Gtk.toWidget button
 
 runToggleButton :: Runner '[ToggleButton '[Toggle]] (IO ()) (GtkM Gtk.Widget)
 runToggleButton = eventRun $ \(ToggleButton options) handleEvent -> do
@@ -158,7 +151,8 @@ runDynamicState = fullRun $ \(DynamicState state mapEvent generateMarkup) childR
         let (changedState, outerEvent) = mapEvent state innerEvent
         maybe (pure ()) (triggerEvent updateState) changedState
         maybe (pure ()) handleOuterEvent outerEvent
-  runMarkup childRunner handleInnerEvent $ generateMarkup dynamicState
+  let child = generateMarkup dynamicState
+  runMarkup childRunner handleInnerEvent child
 
 runDynamicStateIO :: Runner '[DynamicStateIO] (IO ()) (GtkM Gtk.Widget)
 runDynamicStateIO = fullRun $ \(DynamicStateIO state mapEvent generateMarkup) childRunner handleOuterEvent -> do
@@ -168,7 +162,8 @@ runDynamicStateIO = fullRun $ \(DynamicStateIO state mapEvent generateMarkup) ch
         (changedState, outerEvent) <- liftIO $ mapEvent state innerEvent
         maybe (pure ()) (triggerEvent updateState) changedState
         maybe (pure ()) handleOuterEvent outerEvent
-  runMarkup childRunner handleInnerEvent $ generateMarkup dynamicState
+  let children = generateMarkup dynamicState
+  runMarkup childRunner handleInnerEvent $ children
 
 runDynamicMarkup :: Runner '[DynamicMarkup] (IO ()) (GtkM Gtk.Widget)
 runDynamicMarkup = fullRun $ \(DynamicMarkup dynamicState generateMarkup) childRunner handleEvent -> do
@@ -204,14 +199,14 @@ runFlowLayout :: Runner '[FlowLayout '[Orientation]] (IO ()) (GtkM Gtk.Widget)
 runFlowLayout = fullRun $ \(FlowLayout options children) runner handleEvent -> do
   flowLayout <- Gtk.new Gtk.FlowBox []
   applyOptions flowLayout options handleEvent $ runOrientation
-  sequenceA $ (\markup -> runMarkup runner handleEvent markup >>= #add flowLayout) <$> children
+  traverse (\markup -> runMarkup runner handleEvent markup >>= #add flowLayout) children
   Gtk.toWidget flowLayout
 
 runGridLayout :: Runner '[GridLayout [HomogenousRows, HomogenousColumns]] (IO ()) (GtkM Gtk.Widget)
 runGridLayout = fullRun $ \(GridLayout options children) runner handleEvent -> do
   gridLayout <- Gtk.new Gtk.Grid []
   applyOptions gridLayout options handleEvent $ runHomogenousRows |-> runHomogenousColumns
-  sequence $ runMarkupWithTwoExact (emptyRunner |-> gridChildRunner gridLayout) runner handleEvent <$> children
+  traverse (runMarkupWithTwoExact (gridChildRunner gridLayout) runner handleEvent) children
   Gtk.toWidget gridLayout
   where
     gridChildRunner :: Gtk.Grid -> Runner '[GridChild] (IO ()) (GtkM Gtk.Widget)
@@ -226,19 +221,19 @@ runGridLayout = fullRun $ \(GridLayout options children) runner handleEvent -> d
         (fromIntegral $ gridChildHeight childOptions)
       pure child
 
-runTextInput :: Runner '[TextInput ('[Text, TextChange, Activate] |-> BasicStyling)] (IO ()) (GtkM Gtk.Widget)
+runTextInput :: Runner '[TextInput ('[Text, DynamicText, TextChange, Activate] |-> BasicStyling)] (IO ()) (GtkM Gtk.Widget)
 runTextInput = eventRun $ \(TextInput options) handleEvent -> do
   gtkEntry <- Gtk.new Gtk.Entry []
-  applyOptions gtkEntry options handleEvent $ runTextText |-> runTextChange |-> runActivate |-> runBasicStyling 
+  applyOptions gtkEntry options handleEvent $ runTextText |-> runDynamicTextText |-> runTextChange |-> runActivate |-> runBasicStyling 
   Gtk.toWidget gtkEntry
 
 runHotKey :: Runner '[HotKey] (IO ()) (GtkM Gtk.Widget)
 runHotKey = fullRun $ \(HotKey f child) runner handleEvent -> do
-  widget <- runMarkup runner handleEvent child
+  gtkWidget <- runMarkup runner handleEvent child
   eventControllerKey <- ask gtkEventControllerKey
   handler <- Gtk.onEventControllerKeyKeyPressed eventControllerKey $ mapCallback handleEvent f
-  Gtk.on widget #destroy $ GLib.disconnectSignalHandler eventControllerKey handler
-  pure widget
+  Gtk.on gtkWidget #destroy $ GLib.disconnectSignalHandler eventControllerKey handler
+  pure gtkWidget
   where 
     mapCallback :: (e -> IO ()) -> (Key -> [Modifier] -> Maybe e) -> Word32 -> Word32 -> [Gdk.ModifierType] -> IO Bool
     mapCallback handleEvent f gtkKeyval gtkKeycode gtkModifiers = 
@@ -306,72 +301,6 @@ runHotKey = fullRun $ \(HotKey f child) runner handleEvent -> do
       Gdk.KEY_space -> Just KeySpace
       _ -> Nothing
 
-runDrawingBoard :: Runner '[DrawingBoard '[DrawDiagram BC.Cairo, DrawDynamicDiagram BC.Cairo, MouseClickWithPosition, AspectRatio]] (IO ()) (GtkM Gtk.Widget)
-runDrawingBoard = eventRun $ \(DrawingBoard (Options options)) handleEvent -> do
-  drawingArea <- Gtk.new Gtk.DrawingArea [#expand Gtk.:= True]
-  Gtk.widgetAddEvents drawingArea [Gdk.EventMaskAllEventsMask]
-  diagramRef <- liftIO $ newIORef Nothing
-  aspectRatio <- liftIO $ newIORef Nothing
-  traverse (runMarkup (optionsRunner aspectRatio diagramRef drawingArea) handleEvent) options
-  maybeDiagram <- liftIO $ readIORef diagramRef
-  maybeAspectRatio <- liftIO $ readIORef aspectRatio
-  liftIO $ case maybeDiagram of
-    Nothing -> pure ()
-    Just dynamicDiagram -> do
-      (resizeDynamic, triggerResize) <- newDynamic (0,0)
-      imagePtr <- newIORef (nullPtr)
-      unregister1 <- reactimate (toEvent $ (,) <$> dynamicDiagram <*> resizeDynamic) $ simpleEventHandler $ \(diagram, (w,h)) -> do
-        oldPtr <- readIORef imagePtr
-        BC.renderPtr w h (C.FormatARGB32) diagram >>= atomicWriteIORef imagePtr
-        free oldPtr
-      Gtk.onWidgetSizeAllocate drawingArea $ \rect -> do
-        w <- Gdk.getRectangleWidth rect
-        h <- Gdk.getRectangleHeight rect
-        triggerEvent triggerResize (fromEnum w, fromEnum h)
-      Gtk.onWidgetDraw drawingArea $ \context -> do
-        (width, height) <- current $ toBehavior resizeDynamic
-        ptr <- readIORef imagePtr
-        C.withImageSurfaceForData (castPtr ptr) C.FormatARGB32 width height (C.formatStrideForWidth C.FormatARGB32 width) $ \surface -> do
-          runRenderWithContext context $ do
-            C.setSourceSurface surface 0 0
-            C.newPath
-            C.rectangle 0 0 (fromIntegral width) (fromIntegral height)
-            C.paint
-        pure True
-      unregister2 <- reactimate (toEvent dynamicDiagram) $ simpleEventHandler $ \_ -> Gtk.widgetQueueDraw drawingArea
-      Gtk.on drawingArea #destroy (liftES $ unregister1 *> unregister2)
-      pure ()
-  case maybeAspectRatio of
-    Nothing -> Gtk.toWidget drawingArea
-    (Just r) -> do
-      frame <- Gtk.new Gtk.AspectFrame [#expand Gtk.:= True]
-      Gtk.aspectFrameSet frame 0.5 0.5 (realToFrac r) False
-      #add frame drawingArea
-      Gtk.toWidget frame
-  where
-    optionsRunner :: IORef (Maybe Double) -> IORef (Maybe (Dynamic (Diagram BC.Cairo))) -> Gtk.DrawingArea -> Runner [DrawDiagram BC.Cairo, DrawDynamicDiagram BC.Cairo, MouseClickWithPosition, AspectRatio] (IO ()) (GtkM ())
-    optionsRunner aspectRef diagramRef drawingArea = 
-          simpleRun (\(DrawDiagram d) -> liftIO $ writeIORef diagramRef $ Just $ pure d)
-      |-> simpleRun (\(DrawDynamicDiagram d) -> liftIO $ writeIORef diagramRef $ Just d)
-      |-> eventRun (\(MouseClickWithPosition f) handleEvent -> do
-            Gtk.onWidgetButtonPressEvent drawingArea $ \eventButton -> do
-              mouseButton <- Gdk.getEventButtonButton eventButton
-              when (mouseButton == 1) $ do
-                  width <- fromIntegral <$> Gtk.widgetGetAllocatedWidth drawingArea
-                  height <- fromIntegral <$> Gtk.widgetGetAllocatedHeight drawingArea
-                  eventX <- floor <$> Gdk.getEventButtonX eventButton
-                  eventY <- floor <$> Gdk.getEventButtonY eventButton
-                  window <- Gtk.widgetGetToplevel drawingArea
-                  -- (_, widgetX, widgetY) <- Gtk.widgetTranslateCoordinates window drawingArea eventX eventY
-                  liftIO $ handleEvent $ f (fromIntegral eventX / width , fromIntegral eventY / height)
-              pure False
-            pure ()
-        )
-      |-> simpleRun (\(AspectRatio ratio) -> liftIO $ writeIORef aspectRef $ Just ratio)
-    runRenderWithContext :: GIC.Context -> C.Render () -> IO ()
-    runRenderWithContext ct r = GIC.withManagedPtr ct $ \p ->
-      runReaderT (C.runRender r) (C.Cairo (castPtr p))
-
 runNotebook :: Runner '[Notebook] (IO ()) (GtkM Gtk.Widget)
 runNotebook = fullRun $ \(Notebook pages) runner handleEvent -> do
   notebook <- Gtk.new Gtk.Notebook []
@@ -417,6 +346,24 @@ runTextLabel = simpleRun $ \(Text t) -> pure ("", [#label Gtk.:= t], const (pure
 
 runTextText :: AllowedAttr o "text" T.Text => Runner ('[Text]) (IO ()) (GtkOption o)
 runTextText = simpleRun $ \(Text t) -> pure ("", [#text Gtk.:= t], const (pure ()))
+
+runDynamicTextLabel :: (AllowedSignal o "destroy" info, AllowedAttr o "label" T.Text) => Runner ('[DynamicText]) (IO ()) (GtkOption o)
+runDynamicTextLabel = simpleRun $ \(DynamicText dynT) -> do
+  t <- liftIO $ current (toBehavior dynT)
+  pure ("", [#label Gtk.:= t], \o -> liftIO $ do
+    unReg <- reactimate (toEvent dynT) $ simpleEventHandler $ \t -> Gtk.set o [#label Gtk.:= t]
+    Gtk.on o #destroy $ liftES unReg
+    pure ()
+    )
+
+runDynamicTextText :: (AllowedSignal o "destroy" info, AllowedAttr o "text" T.Text) => Runner ('[DynamicText]) (IO ()) (GtkOption o)
+runDynamicTextText = simpleRun $ \(DynamicText dynT) -> do
+  t <- liftIO $ current (toBehavior dynT)
+  pure ("", [#text Gtk.:= t], \o -> liftIO $ do
+    unReg <- reactimate (toEvent dynT) $ simpleEventHandler $ \t -> Gtk.set o [#text Gtk.:= t]
+    Gtk.on o #destroy $ liftES unReg
+    pure ()
+    )
 
 runOrientation :: AllowedAttr o "orientation" Gtk.Orientation => Runner ('[Orientation]) (IO ()) (GtkOption o)
 runOrientation = simpleRun $ \orientation -> case orientation of
